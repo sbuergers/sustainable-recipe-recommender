@@ -41,7 +41,7 @@ pd.set_option("max_rows", 15)
 
 # In[2]:
 
-cd D:\data science\nutrition
+#cd D:\data science\nutrition
 
 
 # In[3]:
