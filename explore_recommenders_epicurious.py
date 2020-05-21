@@ -25,11 +25,20 @@ import numpy as np
 import pandas as pd 
 
 # Handle sparse matrices efficiently
+import scipy
 from scipy.sparse import csr_matrix
 
 # Plotting libraries
 import matplotlib.pyplot as plt
 import seaborn as sns
+
+# Json
+import json
+
+# loop handling
+import itertools
+
+
 
 ## Change some defaults for visualizing data frames
 pd.set_option("max_columns", 15)
@@ -138,7 +147,6 @@ plt.suptitle('Relationship between total GHG emissions and # of ingredients');
 ## Surprisingly there does not seem to be much of a relationship between 
 ## number of ingredients and total GHG emissions, to quantify let's also do
 ## some statistics
-import scipy
 rho = scipy.stats.spearmanr(df['Number of ingredients'], df['GHG emissions'])
 rho
 
@@ -212,23 +220,72 @@ print('Least sustainable recipes:')
 print(unsust_rec['title'])
 
 
-# ## Build a recommender system that suggests similar food choices, but more sustainable! 
-# 
-# For this I want to find some users of epicurious recipes using twitter.
-# I will simply assume that if somebody tweets a recipe, they also like it.
 
-# __Load user-recipe table__ created from tweets
+
+## Get User reviews from web-scraping epicurious website, done in
+## scrape_epicurious_recipe_reviews.py and 
+## add_username_to_recipe_reviews.py
 
 # In[11]:
+	
+# load data
+with open('epi_reviews_w_usernames.txt') as json_file:
+    data = json.load(json_file)
+
+# create dataframe of the form 
+# idx, user, title, rating, (sentiment); leaving out sentiment for now
+recipe_titles = list(data.keys())
+user = list()
+title = list()
+rating = list()
+for irec, rec_title in enumerate(recipe_titles):
+	
+	# all reviews of this recipe
+	recipe = data[rec_title]
+	
+	# if there are reviews, go through them
+	if recipe:
+		
+		for irev, review in enumerate(recipe):
+			
+			# when username is not "", i.e. empty, append info to lists 
+			if review['username']: 
+				user.append(review['username'])
+				title.append(rec_title)
+				rating.append(review['rating'])
+				
+				# TODO add column for sentiment of review
+				# ...
+				
+# create dataframe from lists
+df_users = pd.DataFrame({'user':user, 'title':title, 'rating':rating})				
+			
+# Remove rows where rating is NaN
+df_users.dropna(inplace=True)
+
+# Some users gave multiple reviews for the same recipe. In that case average
+# over their ratings and collapse to one entry.
+df_users = df_users.groupby(['user', 'title']).mean().reset_index()
+	
+# add column with centered rating by user
+rating_c = df_users.groupby('user').transform(lambda x: (x - x.mean()))
+df_users['rating_c'] = rating_c
 
 
-df_users = pd.read_csv('epi_users.csv', index_col=0)
+# save to csv
+df_users.to_csv('epi_users_reviews.csv')
+
 
 
 # In[12]:
 
 
 df_users.head()
+
+# check rating distribution
+sns.distplot(df_users['rating'])
+plt.suptitle('User recipe rating distribution');
+
 
 
 # __Create sparse matrix of users x recipes__ with "ratings" as cells, i.e. for
@@ -237,19 +294,42 @@ df_users.head()
 
 # In[13]:
 
+# Create user-recipe ratings matrix
 
+# Initialize variables
 users = df_users['user'].unique()
 titles = df_users['title'].unique()
 Nx = users.shape[0]
 Ny = titles.shape[0]
-user_rec_mat = csr_matrix((Nx, Ny), dtype=np.int8)
+user_ratings = csr_matrix((Nx, Ny), dtype=np.int8)
+user_ratings_cen = csr_matrix((Nx, Ny), dtype=np.int8)
+print('Creating user-recipe ratings matrix ...')
 for u, user in enumerate(users):
-    user_titles = list(df_users['title'][df_users['user'] == user])
-    match_ids = [j for j, val in enumerate(titles) if val in user_titles] 
-    user_rec_mat[u, match_ids] = 1
+	# Progress
+	if u % 1000 == 0:
+		print(u, ' out of ', Nx, ' users processed')
+	
+	# Create user - recipe ratings matrix
+	user_titles = list(df_users['title'][df_users['user'] == user])
+	user_rating = list(df_users['rating'][df_users['user'] == user])
+	user_rating_cen = list(df_users['rating_c'][df_users['user'] == user])
+	match_ids = [j for j, val in enumerate(titles) if val in user_titles]
+	user_ratings[u, match_ids] = np.asarray(user_rating)
+	user_ratings_cen[u, match_ids] = np.asarray(user_rating_cen)
+	
+# save sparse user-recipe matrices
+scipy.sparse.save_npz('user_ratings_sparse.npz', user_ratings)
+scipy.sparse.save_npz('user_ratings_centered_sparse.npz', user_ratings_cen)
 
-user_rec_mat
-plt.imshow(user_rec_mat.toarray())
+
+
+# (re-)load sparse user recipe matrix
+user_mat = scipy.sparse.load_npz('user_ratings_centered_sparse.npz')
+
+
+# visualize user-recipe ratings matrix
+user_mat[0:10, 0:10]
+plt.imshow(user_mat[0:200, 0:200].toarray())
 plt.colorbar()
 plt.show()
 
@@ -286,19 +366,19 @@ sns.heatmap(item_sim_sample, annot=True, cmap='viridis')
 
 # Plot distribution of number of recipes per user
 
-# ### Distribution of number of recipe tweets by users
+# ### Distribution of number of recipe reviews by users
 
 # In[14]:
 
 
-## Compute number of recipe tweets by user
+## Compute number of recipe reviews by user
 N_tw_by_user = np.sum(user_rec_mat.toarray(), axis=1)
 
 ## plot distribution of number of recipe tweets per user
 fig, ax = plt.subplots(figsize=(5,5))
 ax.hist(N_tw_by_user, bins=50)
 ax.set_ylabel('Number of recipe tweets')
-ax.set_title('Distribution of number of recipe tweets by users')
+ax.set_title('Distribution of number of recipe reviews by users')
 plt.show()
 
 
@@ -314,7 +394,7 @@ N_tw_by_recipe = np.sum(user_rec_mat.toarray(), axis=0)
 fig, ax = plt.subplots(figsize=(5,5))
 ax.hist(N_tw_by_recipe, bins=50)
 ax.set_ylabel('Number of tweets')
-ax.set_title('Distribution of number of recipe tweets')
+ax.set_title('Distribution of number of recipe reviews')
 plt.show()
 
 
@@ -328,10 +408,10 @@ titles = df_users['title'].unique()
 recipe_tweetnum = np.sum(user_rec_mat.toarray(), axis=0)
 srtid = np.flip(np.argsort(recipe_tweetnum).astype(int))
 plt.rcdefaults()
-fig, ax = plt.subplots(figsize=(10,10))
-ax.barh(np.asarray(titles)[srtid][0:45], recipe_tweetnum[srtid][0:45], align='center')
-ax.set_xlabel('Number of twitter accounts')
-ax.set_title('What recipe titles are tweeted about by most users?')
+fig, ax = plt.subplots(figsize=(10,15))
+ax.barh(np.asarray(titles)[srtid][0:35], recipe_tweetnum[srtid][0:35], align='center')
+ax.set_xlabel('Number of user accounts who wrote a review')
+ax.set_title('What recipe titles are reviews most users?')
 plt.show()
 
 
@@ -502,7 +582,7 @@ for i, sim_recipe in enumerate(rel_rec['title'][1:]):
 # In[29]:
 
 
-plt.imshow(user_rec_mat.toarray())
+plt.imshow(user_rec_mat[0:100, 0:100].toarray())
 plt.colorbar()
 plt.show()
 
@@ -514,22 +594,115 @@ plt.show()
 # In[30]:
 
 
-user_rec_mat.toarray()[0:10,0:10]
 
 
 # In[31]:
 
 
-user_sim = cosine_similarity(user_rec_mat)
-user_sim.shape
+# Compute user-similarity matrix (for this we need to demean for each user,
+# otherwise user specific biases kreep in - being generally a lenient or harsh
+# rater). I also need to make sure 0s are not seen as actual 0 rating, lower
+# than the lowest possible rating. It makes more sense to substitute 0s with
+# the average rating. Since substituting 0s for a sparse matrix defeats its
+# purpose, we will center the data on zero instead.
 
+# (re-)load sparse user recipe matrix
+user_mat_cen = scipy.sparse.load_npz('user_ratings_centered_sparse.npz')
 
-# In[32]:
-
-
-plt.imshow(user_sim)
+plt.imshow(user_mat_cen[383:780,383:780].toarray())
 plt.colorbar()
 plt.show()
+		
+user_sim = cosine_similarity(user_mat_cen,dense_output=False)
+user_sim.shape
+
+plt.imshow(user_sim[4993:5043, 4993:5043].toarray())
+plt.colorbar()
+plt.show()
+
+
+
+
+## Kick out users with fewer than min_rev reviews
+min_rev = 6
+user_mat = scipy.sparse.load_npz('user_ratings_sparse.npz')
+
+UR = user_mat[user_mat.getnnz(1)>=min_rev]
+
+plt.imshow(UR[0:480,0:480].toarray())
+plt.colorbar()
+plt.show()
+
+# User-similarity matrix
+U = cosine_similarity(UR,dense_output=False)
+U.shape
+
+plt.imshow(U[0:500, 0:500].toarray(), cmap = 'seismic')
+plt.clim(-1,1)
+plt.colorbar()
+plt.show()
+
+
+
+
+
+# For the centered data
+URc = user_mat_cen[user_mat_cen.getnnz(1)>=min_rev]
+
+plt.imshow(URc[0:480,0:480].toarray())
+plt.colorbar()
+plt.show()
+
+
+# Centered User-similarity matrix
+Uc = cosine_similarity(URc,dense_output=False)
+Uc.shape
+
+plt.imshow(Uc[0:1500, 0:1500].toarray(), cmap = 'seismic')
+plt.clim(-1,1)
+plt.colorbar()
+plt.show()
+
+
+
+# use Pearson correlation coefficient
+Ur = np.corrcoef(UR.todense())
+plt.imshow(Ur[0:500, 0:500], cmap = 'seismic')
+plt.clim(-1,1)
+plt.colorbar()
+plt.show()
+
+
+
+
+
+
+
+
+## Make recommendations based on similar users
+
+#Uorig = U
+
+# Find K most similar users
+K = 10
+uidx = 0
+
+# uncentered cosine similarity
+for uidx in range(0,10):
+	sim_users = np.fliplr(np.sort(U[uidx,:].todense()))[:,0:K]
+	print(sim_users)
+	
+# centered cosine similarity
+for uidx in range(0,10):
+	sim_users = np.fliplr(np.sort(Uc[uidx,:].todense()))[:,0:K]
+	print(sim_users)
+	
+	
+	
+# I didn't keep track of the user IDs, so cannot assign recipes anymore
+	
+
+
 
 
 # It is still very evident that the data is extremely sparse - several users have exactly the same recipe tweets!
@@ -621,13 +794,17 @@ from surprise.model_selection import train_test_split
 from collections import defaultdict
 
 
-# add rating column to df_users dataframe
-df_users['rating'] = np.ones(df_users.shape[0])
-df = df_users
-df.columns = ['user', 'item', 'rating']
+# Only keep users with at least 10 rated items
+v = df_users['user']
+df_users_pruned = df_users[v.replace(v.apply(pd.Series.value_counts)).gt(10).all(1)]
+
+# Get dataframes in standard shape for surprise (uncentered and centered)
+df = df_users_pruned.loc[:,'user':'rating']
+df_c = df_users_pruned.drop(columns=['rating'])
+df_c.columns = ['user', 'item', 'rating']
 
 # assume unrated items are neutral, and rated items perfect scores
-reader = Reader(rating_scale=(-1, 1))
+reader = Reader(rating_scale=(1, 4)) # for centered: (-1, 1)
 
 # put data into surprise format
 data = Dataset.load_from_df(df, reader)

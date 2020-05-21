@@ -51,7 +51,7 @@ import time
 
 
 ## (re-)load data
-with open('epi_reviews.txt.txt') as json_file:
+with open('epi_reviews.txt') as json_file:
     data = json.load(json_file)
 
 ## To do: Get user IDs out 
