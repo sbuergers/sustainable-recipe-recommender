@@ -29,19 +29,17 @@ import re
 # Data management
 import pandas as pd 
 import json
+import pickle
 
 # Check execution time
 import time
 
 
+
+
 ## Change some defaults for visualizing data frames
 pd.set_option("max_columns", 15)
 pd.set_option("max_rows", 15)
-
-
-
-# Load recipe data frame 
-df_rec = pd.read_csv("epi_r_w_sust.csv")
 
 
 
@@ -108,9 +106,39 @@ with open('epi_reviews.txt', 'w') as io:
 
 
 
+##############################################################################
+## Code snippets
+
+# ## Selenium code for infinite scroll (must be slow though!)
+# # Add project folder to search path
+# import sys
+# sys.path.append(r'D:\data science\nutrition\scripts\tdi_challenge_may2020')
+
+
+# # to get additional recipes I need to either "click" next page or virtually
+# # scroll down for more recipes to load
+# from selenium import webdriver
+# from selenium.webdriver.common.keys import Keys
+# import os
+
+# browser = webdriver.Chrome(executable_path=os.path.join(os.getcwd(),'chromedriver'))
+# browser.get(search_url)
+
+# body = browser.find_element_by_tag_name("body")
+# browser.Manage().Window.Maximize(); 
+
+# no_of_pagedowns = 2 #Enter number of pages that you would like to scroll here
+
+# while no_of_pagedowns:
+#     body.send_keys(Keys.PAGE_DOWN)
+#     no_of_pagedowns-=1
+
 
 
 
 
 
 ## eof
+
+
+

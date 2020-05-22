@@ -155,21 +155,6 @@ for uid, user_ratings in top_n.items():
 	
 	
 	
-	
-## Using SVD (matrix factorization)
-# Use the famous SVD algorithm.
-algo = SVD()
-
-# Run 5-fold cross-validation and print results.
-cross_validate(algo, data, measures=['RMSE', 'MAE'], cv=5, verbose=True)
-	
-
-
-
-
-
-
-
 
 
 
@@ -198,6 +183,8 @@ from surprise import NMF
 from surprise import SlopeOne
 from surprise import CoClustering
 from surprise.model_selection import GridSearchCV
+
+from surprise import dump
 
 
 
@@ -292,6 +279,8 @@ print(tabulate(perf_rel2_bl.tolist(), headers=headers, showindex=class_names))
 
 
 
+
+
 ## SVD++ seems to be doing the best. Let's see if we can improve on this
 ## further by using different parameters
 algo = SVDpp
@@ -310,33 +299,17 @@ print(gs.best_score['rmse'])
 print(gs.best_params['rmse'])
 
 # all cross validation results from grid
-print(gs.cv_results)
+gs.cv_results
+
+# For now the best result is obtained with the default settings of SVD++
 
 
 
 
 
-# 
 
 
-
-
-# fit model
-algo.fit(trainset).test(testset)
-
-
-
-# Use the full training set to make predictions!
-# Retrieve the trainset.
-trainset = data.build_full_trainset()
-
-# Build an algorithm, and train it.
-algo.fit(trainset)
-
-# test algorithm on testset
-predictions = algo.test(testset)
-
-
+## Train SVD++ on all data and dump to pickle file for reuse
 
 
 
