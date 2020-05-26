@@ -13,9 +13,6 @@ Created on Thu May 21 09:32:59 2020
 import sys
 sys.path.append(r'D:\data science\nutrition\scripts\tdi_challenge_may2020')
 
-# numpy
-import numpy as np
-
 # Data management
 import pickle
 import json
@@ -45,7 +42,7 @@ p = multiprocessing.Pool(2)
 output = p.map(EP_Recipe,ep_urls)
 
 print("--- %s seconds ---" % (time.time() - start_time))
-
+# for 34000 recipes it took 5.625 h
 
 # Convert list of EP_Recipe objects to list of dictionaries
 ar = []
@@ -55,7 +52,6 @@ for i in output:
 # Dump to json
 with open('epi_recipes_detailed', 'w') as io:
         json.dump(ar, io)
-
 
 
 
