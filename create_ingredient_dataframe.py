@@ -17,7 +17,7 @@ sys.path.append(r'D:\data science\nutrition\scripts\tdi_challenge_may2020')
 
 # pandas
 import pandas as pd
-pd.set_option('display.max_rows', 5)
+pd.set_option('display.max_rows', 50)
 pd.set_option('display.max_columns', 20)
 
 # numpy
@@ -112,7 +112,7 @@ print([x for x in df_dummy.columns])
 
 
 # It would be great if instead of dummy coded category values (which includes
-# ingredients) I could pinpoint the exact amount of each ingredient.
+# some ingredients) I could pinpoint the exact amount of each ingredient.
 # I should be able to leverage the ingredients column for this. 
 
 
@@ -126,7 +126,7 @@ print([x for x in df_dummy.columns])
 # https://github.com/NYTimes/ingredient-phrase-tagger
 
 # It seems somewhat cumbersome, because it uses an ubuntu docker container
-# that then uses python 2.7 code in the comman line together with crf++, which
+# that then uses python 2.7 code in the command line together with crf++, which
 # is a conditional random field toolbox written in C++ that needs to be trained
 # on the NYT database (or a different database, but this one is conveniently
 # included). 
@@ -454,19 +454,117 @@ print("I have", len(ingredient_names), "unique ingredient labels after removing 
 # of the ingredients is part of the string ("lime" is part of "juice of 1 medium
 # lime"). However, when two or more matches are found, I should not interfere.
 
-
 # Get corpus of ingredient categories
 corpus = []
 for categories in df['categories']:
 	[corpus.append(item) for item in categories if item not in corpus]
 	
+	
+# The categories are not tailored to reflect all ingredients, try to use a
+# true ingredient list, using the NY-times dataset. As this data has similar
+# problems to mine, however, only keep ingredients with less than 3 words.
+df_nyt = pd.read_csv('nyt-ingredients-snapshot-2015.csv')
+corpus = df_nyt['name'].unique()
+
+# Remove leading or laggin spaces
+corpus = list(map(lambda x: str(x).strip(), corpus))
+
+# Only allow letters and dashes, including accented letters
+import re
+regex = re.compile("[()-a-zÀ-ÿ0-9a-zA-Z'& ]+")
+corpus = [regex.search(x.lower()).group() for x in corpus]
+corpus = np.unique(corpus)
+
+# Drop NaNs
+corpus = [x for x in corpus if str(x) != 'nan']
+
+# Drop long sequences (>= 3 words)
+corpus = list(filter(lambda a: len(a.split()) < 3, corpus))
+
+# Drop empty elements
+corpus = list(filter(lambda x: x != "", corpus))
+
+# Drop elements of length < 3
+corpus = list(filter(lambda x: len(x) > 2, corpus))
+
+# Remove commas and periods
+corpus = [x.replace('.', '') for x in corpus]
+corpus = [x.replace(',', '') for x in corpus]
+
+# Replace dashes with space
+corpus = [x.replace('-', ' ') for x in corpus]
+
+# Drop duplicates
+corpus = np.unique(corpus)
+
+# Print corpus to text file and use word's autocorrect
+with open('ingredient_labels_raw.txt', 'w') as f:
+    for item in corpus:
+        f.write('%s\n' % item)
+
+
+
+# Anything we can collapse together? Check pairwise edit distances and inspect
+# terms with edist of 1 to see whether they should be the same
+# Note: distance from Levenstein is 28 times faster than levensthein from the 
+# distance module
+from Levenshtein import distance 
+
+def pairwise_edit_dist(L, verbose=False):
+	'''
+	Parameters
+	----------
+	L : List
+		List of strings.
+	verbose : Boolean
+		If True prints out progress
+	Returns
+	-------
+	D : Numpy array
+		Pairwise edit distance upper triangular matrix.
+	'''
+	D = np.zeros((len(L), len(L)))
+	for i in range(0, len(L)):
+		if verbose:
+			if i % 100 == 0:
+				print('Computing pairwise edit distance for row', i, 'out of', len(L))
+		for j in range(i, len(L)):
+			D[i,j] = distance(L[i], L[j])
+	return D
+
+# Compuate pairwise edit distances
+D = pairwise_edit_dist(corpus, verbose=True)
+
+
+# Show pairs with edit distances of 1
+print("Total number of pairs with edit distance of 1:", np.sum(D == 1))
+pairs = np.where(D == 1)
+for i, j in zip(pairs[0], pairs[1]):
+	print(corpus[i], ' - ', corpus[j])
+			
+# Only keep the first entry and drop others (there will be a few errors here,
+# especially for very short words, like twine and wine). 
+for j in zip(pairs[1]):
+	corpus[j] = ""
+
+# Remove duplicates
+corpus = list(filter(lambda x: x != "", corpus))	
+
+# 
+print("Total number of pairs with edit distance of 2:", np.sum(D == 2))
+pairs = np.where(D == 2)
+for i, j in zip(pairs[0], pairs[1]):
+	print(corpus[i], ' - ', corpus[j])	
+	
 
 # Go through ingredient labels and attach each associated category label
 ingredient_dict = dict()
-for ingredient in ingredient_names:
+for i, ingredient in enumerate(ingredient_names):
+	if i % 100 == 0:
+		print('Ingredient #', i)
 	for category in corpus:
-		if category.lower() in ingredient:
-			if ingredient in ingredient_dict
+		if ' '+category.lower()+' ' in ingredient:
+			if ingredient in ingredient_dict:
 				ingredient_dict[ingredient].append(category)
 			else:
 				ingredient_dict[ingredient] = [category]
@@ -474,7 +572,18 @@ for ingredient in ingredient_names:
 			
 # Prune terms that are subterms of others, e.g. we want to keep Olive oil 
 # instead of Olive, Hazelnut instead of nut!
-
+for item in ingredient_dict:
+    # create copy of current list and sort by item length (descending)
+	values = sorted(ingredient_dict[item], key=len, reverse=True)
+	while len(values) > 1:
+		# Compare the shortest string to all longer strings
+		val = values.pop()
+		for longer_val in values:
+			if val.lower() in longer_val.lower():
+				ingredient_dict[item].remove(val)
+				
+				
+# Replace
 
 
 # Be careful with situations like Black Pepper vs Pepper, where only Pepper is
@@ -494,14 +603,14 @@ from sklearn.cluster import AffinityPropagation
 from distance import levenshtein
 
 words = ingredient_names[0:100]
-#words = np.asarray(words) #So that indexing with a list will work
+words = np.asarray(words) #So that indexing with a list will work
 lev_sim = -1*np.array([[levenshtein(w1,w2) for w1 in words] for w2 in words])
 
 aff_prop = AffinityPropagation(affinity="precomputed", damping=0.5)
 aff_prop.fit(lev_sim)
-for cluster_id in np.unique(affprop.labels_):
+for cluster_id in np.unique(aff_prop.labels_):
     exemplar = words[aff_prop.cluster_centers_indices_[cluster_id]]
-    cluster = np.unique(words[np.nonzero(affprop.labels_==cluster_id)])
+    cluster = np.unique(words[np.nonzero(aff_prop.labels_==cluster_id)])
     cluster_str = ", ".join(cluster)
     print(" - *%s:* %s" % (exemplar, cluster_str))
 
