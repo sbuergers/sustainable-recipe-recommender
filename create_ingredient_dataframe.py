@@ -909,49 +909,120 @@ units_ml = {'drop':0.051,
 				}
 
 ## Some quantity labels are messed up, fix them manually, too:
+df_pruned3[df_pruned3['qty']=='1⁄3'] = '1/3'
+df_pruned3[df_pruned3['qty']=='1⁄2'] = '1/2'
+df_pruned3[df_pruned3['qty']=='1⁄4'] = '1/4'
+df_pruned3[df_pruned3['qty']=='1⁄8'] = '1/8'
+df_pruned3[df_pruned3['qty']=='1\u20091/2'] = '1 1/2'
+df_pruned3[df_pruned3['qty']=='2\u20091/2'] = '2 1/2'
+df_pruned3[df_pruned3['qty']=='1‟'] = '1'
+
+
 qty_labels = df_pruned3['qty'].unique()
-qty_labels[qty_labels=='1⁄3'] = '1/3'
-qty_labels[qty_labels=='1⁄2'] = '1/2'
-qty_labels[qty_labels=='1⁄4'] = '1/4'
-qty_labels[qty_labels=='1⁄8'] = '1/8'
-qty_labels[qty_labels=='1\u20091/2'] = '1 1/2'
-qty_labels[qty_labels=='2\u20091/2'] = '2 1/2'
-qty_labels[qty_labels=='1‟'] = '1'
+
+for i, lbl in enumerate(qty_labels):
+	print(i, lbl)
 
 with open(r'D:\data science\nutrition\qty_labels.txt', 'w') as f:
     for item in qty_labels:
         f.write('%s\n' % item)
 		
+
+		
 		
 
 # Add manually fixed unit labels to dataframe df_pruned3
 qty = pd.read_csv(r'D:\data science\nutrition\qty_labels.csv',
-					names=['qty', 'qty_man'])
+					names=['qty', 'qty_man'], encoding='ANSI')
+	
+# Check if all names read in from csv file actually map properly to df_pruned3
+for cnt, i in enumerate(qty['qty']):
+	if any(df_pruned3['qty'] == i):
+		pass
+	else:
+		print(cnt, 'Quantity not in qty look up table at index:', i)
+		
+# The only unmapped value is nan, which I do not want to replace anyway, so
+# remove from qty
+# qty.drop(index=373, inplace=True)
 
-df_pruned3 = pd.merge(df_pruned3, qty, on='qty', how='left')
+df_pruned4 = pd.merge(df_pruned3, qty, on='qty', how='left')
 
 ## Save updated df_crf
-df_pruned3.to_csv(r'D:\data science\nutrition\ingredients_manually_processed.csv')
+df_pruned4.to_csv(r'D:\data science\nutrition\ingredients_manually_processed.csv')
 
 
 
 
-
-## Try to estimate GHG emissions based on ingredients and quantities:
-
-def get_ingredient_emissions():
+# How many ingredients cannot be retrieved?
+# retrieve ingredient quantity
+ghg_list = list()
+ex_qty = list()
+ex_unit = list()
+ex = list()
+for idx in df_pruned4.index:
 	
-	# retrieve ingredient quantity
+	if idx % 1000 == 0:
+		print('Ingredient #', idx, 'of', df_pruned4.shape[0])
+	
 	try:
-		q = float(df_pruned3.iloc[idx]['qty_man'])
+		# convert "fractions" to decimals before converting str to float
+		numstr = df_pruned4.iloc[idx]['qty_man']
+		if '/' in numstr:
+			numL = numstr.split(sep='/')
+			q = float(numL[0]) / float(numL[1])
+		else:
+			q = float(numstr)
 	except:
-		print('Could not convert quantity string to number for:', df_pruned3.iloc[idx]['input'])
+		ex_qty.append(idx)
+		#print('Could not convert quantity string to number for:', df_pruned4.iloc[idx]['input'])
 		q = 0 # can I guess this instead?
-		
-	# convert quantity to ml (which is also roughly grams)
-	qtotal = q * units_ml[df_pruned3.iloc[idx]['unit_man']]
-		
 	
+	# convert quantity to ml (which is also roughly grams)
+	try:
+		qtotal = q * units_ml[df_pruned4.iloc[idx]['unit_man']]
+	except:
+		qtotal = 0
+		ex_unit.append(idx)
+		# print('Could not find unit for:', df_pruned4.iloc[idx]['input'])
+	if qtotal == 0:
+		ex.append(idx)	
+		
+	# Estimate GHG emissions
+	ghg_val = qtotal * 0.001 * ghg['Total'][ghg['Food product'] == 
+							   df_pruned4.iloc[idx]['name_man_pruned2']].values
+	
+	if ghg_val.size == 0:
+		ghg_val = 0
+		
+	ghg_list.append(float(ghg_val))
+	
+	
+print('Could not find GHG emission values for', len(ex), 'out of', df_pruned4.shape[0])
+print('That is', 100*len(ex)/df_pruned4.shape[0], '%')
+
+
+
+## Add ghg emission column to dataframe and save
+idx_col = np.zeros((df_pruned4.shape[0],1))
+idx_col[ex,] = 1
+df_pruned4['ghg'] = ghg_list
+df_pruned4['ghg_missing'] = idx_col
+df_pruned4.to_csv(r'D:\data science\nutrition\ingredients_manually_processed.csv')
+
+
+
+
+## Have a look at some ingredients where ghg estimation was not possible
+df_pruned4[df_pruned4.index.isin(ex)]
+
+
+## Are there some where we can use the 'other' column to help?
+df_pruned4[np.logical_and(df_pruned4.index.isin(ex), 
+						  df_pruned4['other'].notnull().values]
+
+
+
 
 
 
