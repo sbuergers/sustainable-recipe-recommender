@@ -832,12 +832,15 @@ df_pruned3.to_csv(r'D:\data science\nutrition\ingredients_manually_processed.csv
 
 
 
+df_pruned3 = pd.read_csv(r'D:\data science\nutrition\ingredients_manually_processed.csv')
+
+
+
 
 
 ## Write functions to be able to extract GHG emissions of a recipe based on
 ## ingredients and their quantities 
 ghg = pd.read_csv(r'D:\data science\nutrition\GHG-emissions-by-life-cycle-stage.csv')
-
 
 
 ## Create a look-up table for ingredient amounts
@@ -909,13 +912,13 @@ units_ml = {'drop':0.051,
 				}
 
 ## Some quantity labels are messed up, fix them manually, too:
-df_pruned3[df_pruned3['qty']=='1⁄3'] = '1/3'
-df_pruned3[df_pruned3['qty']=='1⁄2'] = '1/2'
-df_pruned3[df_pruned3['qty']=='1⁄4'] = '1/4'
-df_pruned3[df_pruned3['qty']=='1⁄8'] = '1/8'
-df_pruned3[df_pruned3['qty']=='1\u20091/2'] = '1 1/2'
-df_pruned3[df_pruned3['qty']=='2\u20091/2'] = '2 1/2'
-df_pruned3[df_pruned3['qty']=='1‟'] = '1'
+df_pruned3['qty'][df_pruned3['qty']=='1⁄3'] = '1/3'
+df_pruned3['qty'][df_pruned3['qty']=='1⁄2'] = '1/2'
+df_pruned3['qty'][df_pruned3['qty']=='1⁄4'] = '1/4'
+df_pruned3['qty'][df_pruned3['qty']=='1⁄8'] = '1/8'
+df_pruned3['qty'][df_pruned3['qty']=='1\u20091/2'] = '1 1/2'
+df_pruned3['qty'][df_pruned3['qty']=='2\u20091/2'] = '2 1/2'
+df_pruned3['qty'][df_pruned3['qty']=='1‟'] = '1'
 
 
 qty_labels = df_pruned3['qty'].unique()
