@@ -912,13 +912,13 @@ units_ml = {'drop':0.051,
 				}
 
 ## Some quantity labels are messed up, fix them manually, too:
-df_pruned3['qty'][df_pruned3['qty']=='1⁄3'] = '1/3'
-df_pruned3['qty'][df_pruned3['qty']=='1⁄2'] = '1/2'
-df_pruned3['qty'][df_pruned3['qty']=='1⁄4'] = '1/4'
-df_pruned3['qty'][df_pruned3['qty']=='1⁄8'] = '1/8'
-df_pruned3['qty'][df_pruned3['qty']=='1\u20091/2'] = '1 1/2'
-df_pruned3['qty'][df_pruned3['qty']=='2\u20091/2'] = '2 1/2'
-df_pruned3['qty'][df_pruned3['qty']=='1‟'] = '1'
+df_pruned3.loc[df_pruned3['qty']=='1⁄3', 'qty'] = '1/3'
+df_pruned3.loc[df_pruned3['qty']=='1⁄2', 'qty'] = '1/2'
+df_pruned3.loc[df_pruned3['qty']=='1⁄4', 'qty'] = '1/4'
+df_pruned3.loc[df_pruned3['qty']=='1⁄8', 'qty'] = '1/8'
+df_pruned3.loc[df_pruned3['qty']=='1\u20091/2', 'qty'] = '1 1/2'
+df_pruned3.loc[df_pruned3['qty']=='2\u20091/2', 'qty'] = '2 1/2'
+df_pruned3.loc[df_pruned3['qty']=='1‟', 'qty'] = '1'
 
 
 qty_labels = df_pruned3['qty'].unique()
