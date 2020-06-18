@@ -20,9 +20,6 @@ import json
 # Check execution time
 import time
 
-# Parallel computing
-import multiprocessing
-
 # Import recipe modules from kaggle post
 from recipes import EP_Recipe
 
@@ -33,13 +30,12 @@ with open('epi_recipe_links', 'rb') as io:
     recipe_links = pickle.load(io)
 
 
-# Convert recipe links to recipe objects (does 16 recipes in 8.85s)
+# Convert recipe links to recipe objects (does 16 recipes in 10.97s)
 print("Scraping recipes from epicurious.....") 
 start_time = time.time()
 
 ep_urls = ["https://www.epicurious.com" + i for i in recipe_links]
-p = multiprocessing.Pool(2)
-output = p.map(EP_Recipe,ep_urls)
+output = [EP_Recipe(url) for url in ep_urls[0:16]]
 
 print("--- %s seconds ---" % (time.time() - start_time))
 # for 34000 recipes it took 5.625 h

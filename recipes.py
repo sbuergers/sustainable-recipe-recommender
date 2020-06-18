@@ -8,7 +8,7 @@
 import datetime
 from bs4 import BeautifulSoup as bs
 import abc
-from urllib.request import urlopen as url
+from urllib.request import urlopen
 
 
 # must be passed raw html
@@ -17,6 +17,7 @@ class Recipe:
     title = ''
     date = ''
     desc = ''
+    url = ''
     ingredients = []
     directions = []
     categories = []
@@ -44,7 +45,7 @@ class Recipe:
     @abc.abstractstaticmethod
     def get_desc(self, page):
         pass
-
+	
     def build_recipie(self, page):
         self.title = self.get_title(page)
         self.ingredients = self.get_ingredients(page)
@@ -56,9 +57,12 @@ class Recipe:
     def __init__(self, page):
         print('attempting to build from: '+page)
         try:
-            self.build_recipie(bs(url(page), 'html.parser'))
+            self.url = page.replace('https://www.epicurious.com/recipes/food/views/', '')
+            self.build_recipie(bs(urlopen(page), 'html.parser'))
         except Exception as x:
             print('Could not build from %s, %s'%(page,x))
+
+
 
 class FN_Recipe(Recipe):
     def get_title(self, page):
@@ -86,6 +90,7 @@ class FN_Recipe(Recipe):
         return [dd['content'] for dd in page.find_all('meta', {'itemprop': 'description'})][-1].encode('utf-8').strip()
 
 
+
 # No scripting shit apparently needed
 class EP_Recipe(Recipe):
     rating = None
@@ -93,6 +98,7 @@ class EP_Recipe(Recipe):
     sodium = None
     fat = None
     protein = None
+	servings = None
 
 
     def get_date(self, page):
