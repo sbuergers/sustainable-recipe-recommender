@@ -29,27 +29,32 @@ from recipes import EP_Recipe
 with open('epi_recipe_links', 'rb') as io:
     recipe_links = pickle.load(io)
 
+ep_urls = ["https://www.epicurious.com" + i for i in recipe_links]
 
-# Convert recipe links to recipe objects (does 16 recipes in 10.97s)
+
 print("Scraping recipes from epicurious.....") 
 start_time = time.time()
 
-ep_urls = ["https://www.epicurious.com" + i for i in recipe_links]
-output = [EP_Recipe(url) for url in ep_urls[0:16]]
+# Sometimes it gets stuck - retrieve recipes in batches and save periodically
+output = []
+for i, url in enumerate(ep_urls):
+	
+	# Convert recipe links to recipe objects (does 16 recipes in ~7-11s)
+	output.append(EP_Recipe(url))
+
+	# Convert list of EP_Recipe objects to list of dictionaries
+	ar = []
+	for iout in output:
+		ar.append(iout.__dict__)
+		
+	# Dump to json
+	if (i % 500 == 0) or (i == len(ep_urls)-1):
+		print('Saving recipes....', i, 'out of', len(ep_urls))
+		with open('epi_recipes_detailed', 'a') as io:
+		        json.dump(ar, io)
 
 print("--- %s seconds ---" % (time.time() - start_time))
 # for 34000 recipes it took 5.625 h
-
-# Convert list of EP_Recipe objects to list of dictionaries
-ar = []
-for i in output:
-	ar.append(i.__dict__)
-	
-# Dump to json
-with open('epi_recipes_detailed', 'w') as io:
-        json.dump(ar, io)
-
-
 
 
 

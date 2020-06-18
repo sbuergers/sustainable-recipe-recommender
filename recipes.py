@@ -91,15 +91,14 @@ class FN_Recipe(Recipe):
 
 
 
-# No scripting shit apparently needed
+# No scripting apparently needed
 class EP_Recipe(Recipe):
     rating = None
     calories = None
     sodium = None
     fat = None
     protein = None
-	servings = None
-
+    servings = ''
 
     def get_date(self, page):
         try:
@@ -138,6 +137,7 @@ class EP_Recipe(Recipe):
         self.sodium = self.get_sodium(page)
         self.fat = self.get_fat(page)
         self.protein = self.get_protein(page)
+        self.servings = self.get_servings(page)
 
     def get_calories(self,page):
         try:
@@ -160,6 +160,12 @@ class EP_Recipe(Recipe):
     def get_protein(self, page):
         try:
             return float(page.find('span', {'class': 'nutri-data', 'itemprop': 'proteinContent'}).text.split(' ')[0])
+        except:
+            return None
+
+    def get_servings(self, page):
+        try:
+            return page.find('dd', {'class': 'yield', 'itemprop': 'recipeYield'}).text.split(' ')
         except:
             return None
 
