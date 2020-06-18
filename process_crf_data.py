@@ -401,6 +401,7 @@ df['ingredients'].iloc[rec_id[110477]]
 
 
 ## Reset index
+df['recID'] = df.index
 df.reset_index(inplace=True)
 
 

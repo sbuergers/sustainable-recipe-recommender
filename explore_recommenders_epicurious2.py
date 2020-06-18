@@ -51,7 +51,7 @@ from collections import defaultdict
 
 # Only keep users with at least 10 rated items
 v = df_users['user'].value_counts()
-df_users_pruned = df_users[df_users['user'].isin(v.index[v.gt(9)])]
+df_users_pruned = df_users[df_users['user'].isin(v.index[v.gt(9)])].copy()
 df_users_pruned.drop(columns=['Unnamed: 0'], inplace=True)
 
 
@@ -274,6 +274,7 @@ perf_rel2_bl = perf - perf[11,:]
 class_names = ["SVD", "SVDpp", "NMF", "SlopeOne", "user-KNNBasic", "user-KNNWithMeans", 
 				   "user-KNNBaseline", "item-KNNBasic", "item-KNNWithMeans", "item-KNNBaseline",
 				   "CoClustering", "BaselineOnly", "NormalPredictor"]
+headers = ['RMSE', 'MAE', 'Time (min)']
 print(tabulate(perf_rel2_bl.tolist(), headers=headers, showindex=class_names))
 
 
