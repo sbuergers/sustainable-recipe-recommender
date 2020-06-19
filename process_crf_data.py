@@ -71,6 +71,7 @@ with open('epi_recipes_detailed', 'r') as io:
 # I can convert this to a dataframe straight off the bat
 df = pd.DataFrame(data)
 
+
 # Show some basic info of the data
 print(df.head())
 print(df.columns)

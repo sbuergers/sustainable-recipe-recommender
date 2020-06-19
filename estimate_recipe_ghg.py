@@ -433,6 +433,8 @@ def get_top_n(predictions, n=10):
 # but I can use the 10 users with the most ratings for example:
 top10_raters = df_users['user'].value_counts().index[0:10].values
 df10 = df_users[df_users['user'].isin(top10_raters)].copy()
+df10.reset_index(inplace=True, drop=True)
+
 
 data10 = Dataset.load_from_df(df10, reader)
 top10_trainset = data10.build_full_trainset()
@@ -442,11 +444,18 @@ predictions = algo.test(top10_testset)
 top_n = get_top_n(predictions, n=10)
 
 # Print the recommended items for each user
-for uid, user_ratings in top_n.items():
+for i, (uid, user_ratings) in enumerate(top_n.items()):
 	print(' ')
+	print('User', i)
 	print(uid)
-	print('-----------------------------')
-	[print(round(r*10)/10, '/', round(r_est*10)/10, iid) for (iid, r_est, r) in user_ratings]
+	print('--------- liked ----------')
+	dfu = df10[df10['user']==uid].copy()
+	dfu.reset_index(inplace=True, drop=True)
+	idx = np.flip(np.argsort(dfu['rating']))
+	print(dfu[['title', 'rating']].loc[idx[0:20]])
+	print(' ')
+	print('------- predicted to like --------')
+	[print(round(r*100)/100, '/', round(r_est*100)/100, iid) for (iid, r_est, r) in user_ratings]
 
 
 

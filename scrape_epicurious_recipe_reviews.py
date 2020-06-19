@@ -43,54 +43,35 @@ pd.set_option("max_rows", 15)
 
 
 
+# Load recipe links (from scrape_epicurious_links.py)
+with open('epi_recipe_links', 'rb') as io:
+    recipe_links = pickle.load(io)
+
+ep_urls = ["https://www.epicurious.com" + i for i in recipe_links]
+
+
 # recipe-scrapers works beautifully if I have the url for the specific recipe
-# To get it I will use the search functionality of epicurious putting in the
-# recipe's title. 
-# For example:
-# https://www.epicurious.com/search/braised-chicken-with-artichokes-and-olives?search=braised-chicken-with-artichokes-and-olives
-# Then I will simply look for the recipe handle in the HTML corpus to get the
-# recipe's specific link. 
 start_time = time.time()
 review_dict = {}
-no_link_index = list()
 N = len(df_rec)
-for i, title_raw in enumerate(df_rec['title'][0:N]):
+for i, url in enumerate(ep_urls):
 	
 	# Progress 
-	if i % 10 == 0:
-		print(i, title_raw)
+	if i % 100 == 0:
+		print(i, url)
 		
 	# Give the server some rest every 500 recipes
 # 	if i % 500 == 0:
 # 		time.sleep(60) # in s
-	
-	# Remove commas and lagging spaces, replace spaces inbetween words with -,
-	# and make lower case
-	title = title_raw.strip().replace(',', '').replace(' ', '-').lower()
-	
-	# create recipe search url and scrape HTML text
-	rec_search_url = "https://www.epicurious.com/search/" + title + "?" + "search=" + title
-	page = requests.get(rec_search_url)
-	html_text = page.content.decode('utf-8')
-	
-	# Get recipe url handle (including number at end) 
-	find_me = title + "-" + "\d+"
-	re_search = re.search(find_me, html_text)
-	if re_search is None:
-		reviews = []
-		no_link_index.append(i)
-	else:
-		rec_handle = re_search.group(0)
-	
-		# create url of recipe
-		rec_url = 'https://www.epicurious.com/recipes/food/views/' + rec_handle
-		
-		# scrape reviews from recipe page
-		scraper = scrape_me(rec_url)
-		reviews = scraper.reviews()
-	
+
+	# scrape reviews from recipe page
+	scraper = scrape_me(url)
+	reviews = scraper.reviews()
+
 	# Add recipe to review dictionary
-	review_dict[title_raw] = reviews
+	webpart = 'https://www.epicurious.com/recipes/food/views/'
+	pruned_url = url[len(webpart)::]
+	review_dict[pruned_url] = reviews
 
 # Code timing
 print("--- %s seconds ---" % (time.time() - start_time))
@@ -99,42 +80,6 @@ print("--- %s seconds ---" % (time.time() - start_time))
 # Save reviews dictionary to json
 with open('epi_reviews.txt', 'w') as io:
     json.dump(review_dict, io)
-
-
-
-
-
-
-
-##############################################################################
-## Code snippets
-
-# ## Selenium code for infinite scroll (must be slow though!)
-# # Add project folder to search path
-# import sys
-# sys.path.append(r'D:\data science\nutrition\scripts\tdi_challenge_may2020')
-
-
-# # to get additional recipes I need to either "click" next page or virtually
-# # scroll down for more recipes to load
-# from selenium import webdriver
-# from selenium.webdriver.common.keys import Keys
-# import os
-
-# browser = webdriver.Chrome(executable_path=os.path.join(os.getcwd(),'chromedriver'))
-# browser.get(search_url)
-
-# body = browser.find_element_by_tag_name("body")
-# browser.Manage().Window.Maximize(); 
-
-# no_of_pagedowns = 2 #Enter number of pages that you would like to scroll here
-
-# while no_of_pagedowns:
-#     body.send_keys(Keys.PAGE_DOWN)
-#     no_of_pagedowns-=1
-
-
-
 
 
 
