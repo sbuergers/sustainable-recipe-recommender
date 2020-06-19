@@ -83,9 +83,11 @@ def scrape_epi_links(search_term):
 	# Make sure recipe links are truly unique (should already be)
 	recipe_links = list(set(recipe_links))
 	
-	# Save recipe links to txt file
-	with open('epi_recipe_links_by_category', 'a') as io:
-	    pickle.dump(recipe_links, io)
+	return recipe_links
+	
+
+
+
 
 
 # # Load recipe links from pickle file
@@ -96,18 +98,36 @@ def scrape_epi_links(search_term):
 
 # Scrape recipe links by category (appends to pickle file)
 # Try out for one search term to test
-search_term = r'vegan'
-scrape_epi_links(search_term)
+search_term = r'Vegan'
+recipe_links = scrape_epi_links(search_term)
 
 
-# Are all (or at least almost all - there may be new additions over the past 
-# month) links included in the original, unspecific search?
-# TODO...
+# Do I have all of these also in the non-directed search list of recipe links?
+
+# Load in previously scraped data 
+with open('epi_recipes_detailed', 'r') as io:
+        data = json.load(io)
+df = pd.DataFrame(data)
+
+# Check how many recipes I already had collected
+old_links = df['url'].values
+new_links = [l[len('/recipes/food/views/')::] for l in recipe_links]
+matches = [n in old_links for n in new_links]
+
+print('We already had', sum(matches), 'out of', len(recipe_links), 'recipe links.')
 
 
-# Scrape recipe links by category (all categories in epicurious recipe data)
-# TODO...
+# It's proboably save to say that the few additional ones are simply new.
+# So we can conclude that searching for specific epicurious categories does
+# not yield recipe links that we did not get with a simple unspecified search.
 
+# The question remains: Why does epicurious claim to have 300k+ recipes?
+# I can only find 40k- searching their website...
+
+
+# Save recipe links to txt file
+#with open('epi_recipe_links_by_category', 'a') as io:
+#    pickle.dump(recipe_links, io)
 
 
 

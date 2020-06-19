@@ -52,6 +52,7 @@ for i, url in enumerate(ep_urls):
 		print('Saving recipes....', i, 'out of', len(ep_urls))
 		with open('epi_recipes_detailed', 'a') as io:
 		        json.dump(ar, io)
+		output = []
 
 print("--- %s seconds ---" % (time.time() - start_time))
 # for 34000 recipes it took 5.625 h

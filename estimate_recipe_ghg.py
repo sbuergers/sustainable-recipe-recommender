@@ -293,6 +293,9 @@ for i, sim_recipe in enumerate(rel_rec['title'][1:]):
 
 
 
+## ------- SVD++ -------
+# Load rating dataframe (user | title | rating)
+df_users = pd.read_csv('epi_users_reviews.csv')
 
 
 
