@@ -290,7 +290,10 @@ for i, sim_recipe in enumerate(rel_rec['title'][1:]):
 
 
 
+
+
 ## ------- SVD++ -------
+
 # Load rating dataframe (user | title | rating)
 
 # Helper function to see all methods of an object
@@ -409,13 +412,13 @@ def get_top_n(predictions, n=10):
 
     Returns:
     A dict where keys are user (raw) ids and values are lists of tuples:
-        [(raw item id, rating estimation), ...] of size n.
+        [(raw item id, rating estimation, actual rating), ...] of size n.
     '''
 
     # First map the predictions to each user.
     top_n = defaultdict(list)
     for uid, iid, true_r, est, _ in predictions:
-        top_n[uid].append((iid, est))
+        top_n[uid].append((iid, est, true_r))
 
     # Then sort the predictions for each user and retrieve the k highest ones.
     for uid, user_ratings in top_n.items():
@@ -440,7 +443,10 @@ top_n = get_top_n(predictions, n=10)
 
 # Print the recommended items for each user
 for uid, user_ratings in top_n.items():
-    print(uid, [print(iid) for (iid, _) in user_ratings])
+	print(' ')
+	print(uid)
+	print('-----------------------------')
+	[print(round(r*10)/10, '/', round(r_est*10)/10, iid) for (iid, r_est, r) in user_ratings]
 
 
 
