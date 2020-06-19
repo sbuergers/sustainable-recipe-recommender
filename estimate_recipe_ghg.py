@@ -317,10 +317,12 @@ from surprise.model_selection import GridSearchCV
 # writing data to file
 from surprise import dump
 
+from collections import defaultdict
+
 
 
 ## TODO: Fix title (recipe name) in df_users - should be unique!
-df_users = pd.read_csv('epi_users_reviews.csv', index_col=0)
+df_users = pd.read_csv('epi_users_reviews_incl_anonymous.csv', index_col=0)
 df_users = df_users.loc[:,'user':'rating']
 
 # formalize rating scale
@@ -368,13 +370,30 @@ algo.fit(trainset)
 # Show distribution of ratings by users
 df_users['user'].value_counts()
 df_users['title'].value_counts()
+df_users[df_users['user']=='lschmidt']
 
 # For a given user and recipe, compare true rating with predicted rating
 uid = 'lschmidt'  
-iid = 'Grilled Halibut with Chimichurri'
+iid = 'Autumn Gin Sour '
+r = float(df_users.loc[(df_users['user']==uid) & (df_users['title']==iid),'rating'].values)
 
 # get a prediction for specific users and items.
-pred = algo.predict(uid, iid, r_ui=4, verbose=True)
+pred = algo.predict(uid, iid, r_ui=r, verbose=True)
+
+
+# I can try this for all recipes this user liked
+def show_user_predictions(uid, df, algo):
+	rated_recipes = df.loc[df['user']==uid, 'title'].values
+	for iid in rated_recipes:
+		r = float(df.loc[(df['user']==uid) & (df['title']==iid),'rating'].values)
+		pred = algo.predict(uid, iid, r_ui=r, verbose=True)
+		print(pred)
+		
+		
+show_user_predictions('lschmidt', df_users, algo)
+
+
+
 
 
 # Get the top n predictions for each user
@@ -407,14 +426,21 @@ def get_top_n(predictions, n=10):
 
 
 # predict ratings for all pairs (u, i) that are NOT in the training set.
-testset = trainset.build_anti_testset()
-predictions = algo.test(testset)
+# I cannot do this for the whole dataset (memory runs out rather quickly),
+# but I can use the 10 users with the most ratings for example:
+top10_raters = df_users['user'].value_counts().index[0:10].values
+df10 = df_users[df_users['user'].isin(top10_raters)].copy()
+
+data10 = Dataset.load_from_df(df10, reader)
+top10_trainset = data10.build_full_trainset()
+top10_testset = top10_trainset.build_anti_testset()
+predictions = algo.test(top10_testset)
 
 top_n = get_top_n(predictions, n=10)
 
 # Print the recommended items for each user
 for uid, user_ratings in top_n.items():
-    print(uid, [iid for (iid, _) in user_ratings])
+    print(uid, [print(iid) for (iid, _) in user_ratings])
 
 
 

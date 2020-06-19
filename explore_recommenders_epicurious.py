@@ -277,6 +277,59 @@ df_users.to_csv('epi_users_reviews.csv')
 
 
 
+
+
+
+
+# load data for recipe reviews (including anonymous raters)
+with open('epi_reviews_w_usernames_incl_anonymous.txt') as json_file:
+    data = json.load(json_file)
+
+# create dataframe of the form 
+# idx, user, title, rating, (sentiment); leaving out sentiment for now
+recipe_titles = list(data.keys())
+user = list()
+title = list()
+rating = list()
+for irec, rec_title in enumerate(recipe_titles):
+	
+	# all reviews of this recipe
+	recipe = data[rec_title]
+	
+	# if there are reviews, go through them
+	if recipe:
+		
+		for irev, review in enumerate(recipe):
+			
+			# when username is not "", i.e. empty, append info to lists 
+			if review['username']: 
+				user.append(review['username'])
+				title.append(rec_title)
+				rating.append(review['rating'])
+				
+				# TODO add column for sentiment of review
+				# ...
+				
+# create dataframe from lists
+df_users = pd.DataFrame({'user':user, 'title':title, 'rating':rating})				
+			
+# Remove rows where rating is NaN
+df_users.dropna(inplace=True)
+
+# Some users gave multiple reviews for the same recipe. In that case average
+# over their ratings and collapse to one entry.
+df_users = df_users.groupby(['user', 'title']).mean().reset_index()
+	
+# add column with centered rating by user
+rating_c = df_users.groupby('user').transform(lambda x: (x - x.mean()))
+df_users['rating_c'] = rating_c
+
+
+# save to csv
+df_users.to_csv('epi_users_reviews_incl_anonymous.csv')
+
+
+
 # In[12]:
 
 
