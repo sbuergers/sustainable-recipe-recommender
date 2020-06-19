@@ -335,20 +335,20 @@ print(get_methods(data))
 # using only users with at least 8 ratings and the defaults were best for
 # n_epochs, lr_all and reg_all, so I will fix them here and vary n_factors):
 	
-# Note that the handbook suggests using different lrs for different params
-param_grid = {'n_factors': [10, 15, 20]}
-gs = GridSearchCV(SVDpp, param_grid, measures=['rmse'], cv=5)
+# # Note that the handbook suggests using different lrs for different params
+# param_grid = {'n_factors': [10, 15, 20]}
+# gs = GridSearchCV(SVDpp, param_grid, measures=['rmse'], cv=5)
 
-gs.fit(data)
+# gs.fit(data)
 
-# best RMSE score
-print(gs.best_score['rmse'])
+# # best RMSE score
+# print(gs.best_score['rmse'])
 
-# combination of parameters that gave the best RMSE score
-print(gs.best_params['rmse'])
+# # combination of parameters that gave the best RMSE score
+# print(gs.best_params['rmse'])
 
-# all cross validation results from grid
-gs.cv_results
+# # all cross validation results from grid
+# gs.cv_results
 
 # Also for n_factors the default value of 20 performs best
 
@@ -365,14 +365,16 @@ trainset = data.build_full_trainset()
 algo = SVDpp()
 algo.fit(trainset)
 
+# Show distribution of ratings by users
+df_users['user'].value_counts()
+df_users['title'].value_counts()
+
 # For a given user and recipe, compare true rating with predicted rating
-uid = str(196)  # raw user id (as in the ratings file). They are **strings**!
-iid = str(302)  # raw item id (as in the ratings file). They are **strings**!
+uid = 'lschmidt'  
+iid = 'Grilled Halibut with Chimichurri'
 
 # get a prediction for specific users and items.
 pred = algo.predict(uid, iid, r_ui=4, verbose=True)
-
-print('You just looked at', df_users.iloc[uid,iid])
 
 
 # Get the top n predictions for each user
