@@ -50,10 +50,10 @@ import time
 
 
 
-## (re-)load data
+## (re-)load review data
 with open('epi_reviews.txt') as json_file:
-    data = json.load(json_file)
-
+    review_dict = json.load(json_file)
+	
 ## To do: Get user IDs out 
 
 # Regular expression for finding username in review text
@@ -77,6 +77,7 @@ users = []
 no_user_index = []
 N_users_found = 0
 N_users_total = 0
+cook_num = 0
 recipe_titles = review_dict.keys()
 for i, title_raw in enumerate(recipe_titles):
 	
@@ -99,7 +100,8 @@ for i, title_raw in enumerate(recipe_titles):
 			username = username_match.group(0).replace(' from', '').replace('.', '').lower()
 			# if the username is A cook the user is anonymous
 			if username == "a cook":
-				username = ""
+				username = "a_cook" + str(cook_num)
+				cook_num += 1
 				
 		# Append username to dictionary
 		review_dict[title_raw][j]['username'] = username
