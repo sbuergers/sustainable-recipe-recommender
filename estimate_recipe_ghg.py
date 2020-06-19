@@ -203,9 +203,6 @@ plt.show()
 
 
 
-
-
-
 def find_related_recipes(name, df_rec, N, SM):
 	rec_id = df_rec.index[df_rec['title'] == name]
 	similarities = np.flip(np.sort(SM[rec_id].todense(),axis=1)[:,-N:])
@@ -263,7 +260,7 @@ import random
 
 recipe = random.choice(df_rec['title'])
 print(recipe)
-N_rel_rec = 32
+N_rel_rec = 10
 rel_rec, sim = find_related_recipes(recipe, df_rec, N_rel_rec, SM)
 
 
@@ -295,13 +292,127 @@ for i, sim_recipe in enumerate(rel_rec['title'][1:]):
 
 ## ------- SVD++ -------
 # Load rating dataframe (user | title | rating)
-df_users = pd.read_csv('epi_users_reviews.csv')
+
+# Helper function to see all methods of an object
+def get_methods(obj):
+	return [meth for meth in dir(obj) if callable(getattr(obj, meth))]
+
+
+# loop handling
+import itertools
+
+# Surprise libraries
+from surprise import Dataset
+from surprise import Reader
+
+# svd++ for recommender systems
+from surprise import SVDpp
+
+# model training, testing and hyperparameter grid search
+from surprise.model_selection import train_test_split
+from surprise.model_selection import cross_validate
+from surprise.model_selection import KFold
+from surprise.model_selection import GridSearchCV
+
+# writing data to file
+from surprise import dump
+
+
+
+## TODO: Fix title (recipe name) in df_users - should be unique!
+df_users = pd.read_csv('epi_users_reviews.csv', index_col=0)
+df_users = df_users.loc[:,'user':'rating']
+
+# formalize rating scale
+reader = Reader(rating_scale=(1, 4)) # for centered: (-3, 3)
+
+# put data into surprise format
+data = Dataset.load_from_df(df_users, reader)
+print(get_methods(data))
+
+
+# Do a Grid Search for different hyperparameter values (earlier I tried this
+# using only users with at least 8 ratings and the defaults were best for
+# n_epochs, lr_all and reg_all, so I will fix them here and vary n_factors):
+	
+# Note that the handbook suggests using different lrs for different params
+param_grid = {'n_factors': [10, 15, 20]}
+gs = GridSearchCV(SVDpp, param_grid, measures=['rmse'], cv=5)
+
+gs.fit(data)
+
+# best RMSE score
+print(gs.best_score['rmse'])
+
+# combination of parameters that gave the best RMSE score
+print(gs.best_params['rmse'])
+
+# all cross validation results from grid
+gs.cv_results
+
+# Also for n_factors the default value of 20 performs best
 
 
 
 
+# Fit a default SVD++ model using all training data and check predictions
+# (see https://surprise.readthedocs.io/en/stable/getting_started.html)
+
+# This creates a full "trainset", using all the data
+trainset = data.build_full_trainset()
+
+# Fit model
+algo = SVDpp()
+algo.fit(trainset)
+
+# For a given user and recipe, compare true rating with predicted rating
+uid = str(196)  # raw user id (as in the ratings file). They are **strings**!
+iid = str(302)  # raw item id (as in the ratings file). They are **strings**!
+
+# get a prediction for specific users and items.
+pred = algo.predict(uid, iid, r_ui=4, verbose=True)
+
+print('You just looked at', df_users.iloc[uid,iid])
 
 
+# Get the top n predictions for each user
+# from https://surprise.readthedocs.io/en/stable/FAQ.html#raw-inner-note
+def get_top_n(predictions, n=10):
+    '''Return the top-N recommendation for each user from a set of predictions.
+
+    Args:
+        predictions(list of Prediction objects): The list of predictions, as
+            returned by the test method of an algorithm.
+        n(int): The number of recommendation to output for each user. Default
+            is 10.
+
+    Returns:
+    A dict where keys are user (raw) ids and values are lists of tuples:
+        [(raw item id, rating estimation), ...] of size n.
+    '''
+
+    # First map the predictions to each user.
+    top_n = defaultdict(list)
+    for uid, iid, true_r, est, _ in predictions:
+        top_n[uid].append((iid, est))
+
+    # Then sort the predictions for each user and retrieve the k highest ones.
+    for uid, user_ratings in top_n.items():
+        user_ratings.sort(key=lambda x: x[1], reverse=True)
+        top_n[uid] = user_ratings[:n]
+
+    return top_n
+
+
+# predict ratings for all pairs (u, i) that are NOT in the training set.
+testset = trainset.build_anti_testset()
+predictions = algo.test(testset)
+
+top_n = get_top_n(predictions, n=10)
+
+# Print the recommended items for each user
+for uid, user_ratings in top_n.items():
+    print(uid, [iid for (iid, _) in user_ratings])
 
 
 
