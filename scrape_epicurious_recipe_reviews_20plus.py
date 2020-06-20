@@ -129,6 +129,33 @@ def get_expanded_reviews_page(driver, url):
 	return driver.page_source
 
 
+## Since recipe scrapers internally uses requests and only takes url as input,
+## rather than rewriting the toolbox to also accept page content, adapt the 
+## function that gets users reviews and include it here:
+def get_reviews(page):
+	fork_rating_re = re.compile('/(\d)_forks.png')
+	soup = bs(page, 'html.parser')
+	reviews = soup.findAll('', {'class': "most-recent"})
+	ratings = [rev.find('img', {'class': "fork-rating"}) for rev in reviews]
+	temp = []
+	for rating in ratings:
+		if 'src' in rating.attrs:
+			txt = rating.attrs['src']
+		else:
+			txt = ''
+		rating = fork_rating_re.search(txt)
+		rating = rating.group(1) if rating is not None else '0'
+		rating = int(rating) if rating != '0' else None
+		temp.append(rating)
+		ratings = temp
+	review_texts = [rev.find('div', {'class': "review-text"}) for rev in reviews]
+	reviews = [rev.get_text().strip('/ flag if inappropriate') for rev in review_texts]
+	result = [
+		{'review_text': review_text, "rating": rating_score}
+		for review_text, rating_score in zip(reviews, ratings)
+		]
+	return result
+
 
 # recipe-scrapers works beautifully for recipes with less than 20 (or now 25?)
 # reviews. Here we are only looking at recipes with more than 20 reviews, 
@@ -141,41 +168,41 @@ time.sleep(5) # wait a few seconds for chrome to open
 
 
 # Load recipe links (from scrape_epicurious_recipe_reviews.py)
-with open('epi_reviews20200619_211455.txt', 'r') as io:
-	old_reviews = json.load(io)
+with open('epi_reviews20200619_232923.txt', 'r') as io:
+	reviews = json.load(io)
 
 
 # recipe-scrapers works beautifully if I have the url for the specific recipe
 start_time = time.time()
-review_dict = {}
 N = len(reviews)
-for i, url in enumerate(old_reviews.keys()):
+faillog = []
+for i, url in enumerate(reviews.keys()):
 	
-	#print(i, url, len(old_reviews[url]))
-	
-	# Progress 
-	if i % 100 == 0:
-		print(i, url)
-		
-	if len(old_reviews[url]) > 19:
-		
-		# Get html text of full page (with all reviews)
-		webpart = 'https://www.epicurious.com/recipes/food/views/'
-		page = get_expanded_reviews_page(driver, webpart + url)
+	#print(i, url, len(reviews[url]))
 
-		# scrape reviews from recipe page
-		scraper = scrape_me(url)
-		reviews = scraper.reviews()
+	if len(reviews[url]) > 24:
+		
+		print('Adding new reviews:', i, url, len(reviews[url]))
+		
+		try:
+			# Get html text of full page (with all reviews)
+			webpart = 'https://www.epicurious.com/recipes/food/views/'
+			page = get_expanded_reviews_page(driver, webpart + url)
 	
-		# Add recipe to review dictionary
-		review_dict[url] = reviews
+			# scrape reviews from recipe page
+			page_reviews = get_reviews(page)
+		
+			# Update review dictionary with additional reviews
+			reviews[url] = page_reviews
+		except:
+			faillog.append([i, url])
 
 # Code timing
 print("--- %s seconds ---" % (time.time() - start_time))
 
 
 # Save reviews dictionary to json
-with open('epi_reviews_20plus.txt', 'w') as io:
+with open('epi_reviews_25plus.txt', 'w') as io:
     json.dump(review_dict, io)
 
 
