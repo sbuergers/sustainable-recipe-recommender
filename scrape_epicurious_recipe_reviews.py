@@ -50,16 +50,30 @@ with open('epi_recipe_links', 'rb') as io:
 ep_urls = ["https://www.epicurious.com" + i for i in recipe_links]
 
 
-# recipe-scrapers works beautifully if I have the url for the specific recipe
+# recipe-scrapers works beautifully if I have the url for the specific recipe.
+# However, it does not read reviews beyond what is shown on the website by
+# default. To retrieve reviews hidden by the "view more reviews" button,
+# I can use selenium. This is implemented in a different script, which only
+# considers the recipes found here, with more than the feault number of 
+# reviews. See scrape_epicurious_recipe_reviews_20plus.py.
 start_time = time.time()
+
+# Set filename
+timestr = time.strftime("%Y%m%d_%H%M%S") # make filename unique for every run
+filename = 'epi_reviews' + timestr + '.txt'
+
+# Go through all files that are not already in filename
+try:
+	with open(filename, 'r') as io:
+		old_reviews = json.load(io)
+	S = len(old_reviews.keys())
+except:
+	S = 0
+N = len(ep_urls)
+
 review_dict = {}
-N = len(df_rec)
-for i, url in enumerate(ep_urls):
-	
-	# Progress 
-	if i % 100 == 0:
-		print(i, url)
-		
+for i, url in enumerate(ep_urls[S:N]):
+
 	# Give the server some rest every 500 recipes
 # 	if i % 500 == 0:
 # 		time.sleep(60) # in s
@@ -72,13 +86,17 @@ for i, url in enumerate(ep_urls):
 	webpart = 'https://www.epicurious.com/recipes/food/views/'
 	pruned_url = url[len(webpart)::]
 	review_dict[pruned_url] = reviews
+	
+	# Progress 
+	if i % 100 == 0:
+		print(i, url)	
 
 # Code timing
 print("--- %s seconds ---" % (time.time() - start_time))
 
 
-# Save reviews dictionary to json
-with open('epi_reviews.txt', 'w') as io:
+# Save reviews dictionary to json (append every 1000 recipes)
+with open(filename, 'w') as io:
     json.dump(review_dict, io)
 
 

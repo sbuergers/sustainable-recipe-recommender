@@ -2,9 +2,15 @@
 """
 Created on Sun May 17 13:36:20 2020
 
-Scrape recipe reviews from epicurious website. Uses the data from
-epi_r_w_sust.csv, which inlcudes recipe titles from the Kaggle dataset on
-https://www.kaggle.com/hugodarwood/epirecipes
+In scrape_epicurious_recipe_reviews.py all recipe links (previously retrieved
+scrape_epicurious_recipe_links.py) from the epicurious website 
+(https://www.epicurious.com/) are scraped for user reviews. However, these
+are missing all reviews beyond 20 (or 25?) per recipes. 
+
+Here I am looking to find all additional recipe reviews, which can be found
+by using selenium to click a "view more reviews" button at the bottom of the
+webpage. This is very slow so it is prudent to do this only for recipes that
+might have additional reviews.
 
 Reviews are saved in json format like so:
 {'<title>':[
@@ -33,6 +39,9 @@ import pickle
 
 # Check execution time
 import time
+
+# parsing page (scrape_me wants url, not text of page)
+from bs4 import BeautifulSoup as bs
 
 # Get selenium to "press" load more recipes button (there should be an easier
 # way to do this, but not sure how)
@@ -91,7 +100,7 @@ def get_expanded_reviews_page(driver, url):
 	"""Expands all recipe reviews of the given epicurious url by 'clicking' 
 	the view more recipes button until it disappears. Returns html page. """
 	## Connect to Epicurious recipe URL
-	driver.get('https://www.epicurious.com/recipes/food/views/braised-chicken-with-artichokes-and-olives-51150800')
+	driver.get(url)
 	
 	# Do we have a load more reviews button?
 	button = get_load_reviews_button(driver)
@@ -125,33 +134,41 @@ def get_expanded_reviews_page(driver, url):
 # reviews. Here we are only looking at recipes with more than 20 reviews, 
 # because using selenium to click the "load more reviews" button is slow. 
 
+
+# Setup selenium webpage
+driver = webdriver.Chrome()
+time.sleep(5) # wait a few seconds for chrome to open
+
+
 # Load recipe links (from scrape_epicurious_recipe_reviews.py)
-with open('epi_reviews.txt', 'r') as io:
-	reviews = json.load(io)
+with open('epi_reviews20200619_211455.txt', 'r') as io:
+	old_reviews = json.load(io)
 
 
 # recipe-scrapers works beautifully if I have the url for the specific recipe
 start_time = time.time()
 review_dict = {}
-N = len(df_rec)
-for i, url in enumerate(reviews.keys()):
+N = len(reviews)
+for i, url in enumerate(old_reviews.keys()):
+	
+	#print(i, url, len(old_reviews[url]))
 	
 	# Progress 
 	if i % 100 == 0:
 		print(i, url)
 		
-	# Give the server some rest every 500 recipes
-# 	if i % 500 == 0:
-# 		time.sleep(60) # in s
+	if len(old_reviews[url]) > 19:
+		
+		# Get html text of full page (with all reviews)
+		webpart = 'https://www.epicurious.com/recipes/food/views/'
+		page = get_expanded_reviews_page(driver, webpart + url)
 
-	# scrape reviews from recipe page
-	scraper = scrape_me(url)
-	reviews = scraper.reviews()
-
-	# Add recipe to review dictionary
-	webpart = 'https://www.epicurious.com/recipes/food/views/'
-	pruned_url = url[len(webpart)::]
-	review_dict[pruned_url] = reviews
+		# scrape reviews from recipe page
+		scraper = scrape_me(url)
+		reviews = scraper.reviews()
+	
+		# Add recipe to review dictionary
+		review_dict[url] = reviews
 
 # Code timing
 print("--- %s seconds ---" % (time.time() - start_time))
