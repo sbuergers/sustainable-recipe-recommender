@@ -157,22 +157,21 @@ def get_reviews(page):
 	return result
 
 
-# recipe-scrapers works beautifully for recipes with less than 20 (or now 25?)
-# reviews. Here we are only looking at recipes with more than 20 reviews, 
+# recipe-scrapers works beautifully for recipes with less than 25
+# reviews. Here we are only looking at recipes with more than 25 reviews, 
 # because using selenium to click the "load more reviews" button is slow. 
 
 
 # Setup selenium webpage
 driver = webdriver.Chrome()
-time.sleep(5) # wait a few seconds for chrome to open
+time.sleep(10) # wait a few seconds for chrome to open
 
 
 # Load recipe links (from scrape_epicurious_recipe_reviews.py)
 with open('epi_reviews20200619_232923.txt', 'r') as io:
 	reviews = json.load(io)
 
-
-# recipe-scrapers works beautifully if I have the url for the specific recipe
+# Add "hidden" reviews where necessary
 start_time = time.time()
 N = len(reviews)
 faillog = []
