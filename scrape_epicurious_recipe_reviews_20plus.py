@@ -32,6 +32,10 @@ import requests
 # Regular expressions
 import re
 
+# Check for files / paths
+import os.path
+from os import path
+
 # Data management
 import pandas as pd 
 import json
@@ -96,11 +100,11 @@ def close_pop_up(driver):
 	webdriver.ActionChains(driver).send_keys(Keys.ESCAPE).perform()
 	
 	
-def get_expanded_reviews_page(driver, url):
+def get_expanded_reviews_page(driver, fullurl):
 	"""Expands all recipe reviews of the given epicurious url by 'clicking' 
 	the view more recipes button until it disappears. Returns html page. """
 	## Connect to Epicurious recipe URL
-	driver.get(url)
+	driver.get(fullurl)
 	
 	# Do we have a load more reviews button?
 	button = get_load_reviews_button(driver)
@@ -117,7 +121,7 @@ def get_expanded_reviews_page(driver, url):
 		# Keep doing this until the button disappears or we time out with an error
 		start_time = time.time()
 		run_time = 0
-		timeout = 20
+		timeout = 90
 		while (button) and (not status == "no_button") and (run_time < timeout):
 			if status == "pop_up_interferes":
 				close_pop_up(driver)
@@ -175,93 +179,95 @@ with open('epi_reviews20200619_232923.txt', 'r') as io:
 start_time = time.time()
 N = len(reviews)
 faillog = []
+reviews_new = {}
 for i, url in enumerate(reviews.keys()):
 	
-	#print(i, url, len(reviews[url]))
-
-	if len(reviews[url]) > 24:
-		
-		print('Adding new reviews:', i, url, len(reviews[url]))
-		
-		try:
-			# Get html text of full page (with all reviews)
-			webpart = 'https://www.epicurious.com/recipes/food/views/'
-			page = get_expanded_reviews_page(driver, webpart + url)
+	# Only run over a subset (e.g. already did the first 5000):
+	if i < 5000:
+		continue
 	
-			# scrape reviews from recipe page
-			page_reviews = get_reviews(page)
+	if len(reviews[url]) == 25:
 		
-			# Update review dictionary with additional reviews
-			reviews[url] = page_reviews
-		except:
+		# Sometimes it simply does't work, retry a few times, otherwise
+		# remember where it failed
+		num_tries = 0
+		no_success = True
+		while (num_tries < 5) and (no_success):
+			try:
+				# Get html text of full page (with all reviews)
+				webpart = 'https://www.epicurious.com/recipes/food/views/'
+				page = get_expanded_reviews_page(driver, webpart + url)
+		
+				# scrape reviews from recipe page
+				page_reviews = get_reviews(page)
+			
+				# Update review dictionary with additional reviews
+				reviews[url] = page_reviews
+				no_success = False
+			except:
+				num_tries += 1
+		if num_tries == 5:
 			faillog.append([i, url])
-
+			
+		print('Adding new reviews:', i, url, len(reviews[url]))
+	
+	
+	# Save periodically
+	reviews_new[url] = reviews[url]
+	if (i+1) % 200 == 0:
+		
+		# Saving dictionaries is a bit of a pain if done recurrently,
+		# but I can simply load in the previous dictionary and append
+		if path.exists('epi_reviews_25plus.txt'):
+			with open('epi_reviews_25plus.txt', 'r') as io:
+				reviews_old = json.load(io)
+			reviews_to_file = {**reviews_old, **reviews_new}
+		else:
+			reviews_to_file = reviews_new
+		
+		
+		# Save reviews dictionary to json
+		with open('epi_reviews_25plus.txt', 'w') as io:
+			json.dump(reviews_to_file, io)
+		reviews_new = {}
+		
+		
+		# Write fail-log to file 
+		with open('epi_reviews_25plus_faillog.txt', 'a') as io:
+			for item in faillog:
+				io.write('%s\n' % item)
+		faillog = []
+		
+		print('\n ----- Saving to file ----- \n')
+		
 # Code timing
 print("--- %s seconds ---" % (time.time() - start_time))
 
 
-# Save reviews dictionary to json
-with open('epi_reviews_25plus.txt', 'w') as io:
-    json.dump(review_dict, io)
 
 
 
 
 
+#######
+## Test if adding additional reviews worked:
+	
+# Load old data (max 25 reviews per recipe)
+with open('epi_reviews20200619_232923.txt', 'r') as io:
+	reviews = json.load(io)
+# Load new data
+with open('epi_reviews_25plus.txt', 'r') as io:
+	reviews_25plus = json.load(io)
+tot_diff = 0
+n_diff = 0
+print('Idx | Cn | Co | Cn-Co')
+for idx, (i, j) in enumerate(zip(reviews_25plus.values(), reviews.values())):
+	tot_diff += len(i)-len(j)
+	if len(i) > len(j):
+		n_diff += 1
+		print(idx, len(i), len(j), len(i)-len(j))
+print('There are', tot_diff, 'more reviews after updating, coming from', n_diff, 'recipes.')
 
-
-
-
-
-
-##############################################################################
-## Code snippets
-
-# ## Selenium code for infinite scroll (must be slow though!)
-# # Add project folder to search path
-# import sys
-# sys.path.append(r'D:\data science\nutrition\scripts\tdi_challenge_may2020')
-
-
-# # to get additional recipes I need to either "click" next page or virtually
-# # scroll down for more recipes to load
-# from selenium import webdriver
-# from selenium.webdriver.common.keys import Keys
-# import os
-
-# browser = webdriver.Chrome(executable_path=os.path.join(os.getcwd(),'chromedriver'))
-# browser.get(search_url)
-
-# body = browser.find_element_by_tag_name("body")
-# browser.Manage().Window.Maximize(); 
-
-# no_of_pagedowns = 2 #Enter number of pages that you would like to scroll here
-
-# while no_of_pagedowns:
-#     body.send_keys(Keys.PAGE_DOWN)
-#     no_of_pagedowns-=1
-
-
-
-
-# options = webdriver.ChromeOptions()
-# options.add_argument('--ignore-certificate-errors')
-# options.add_argument("--test-type")
-# options.binary_location = "/usr/bin/chromium"
-# driver = webdriver.Chrome(chrome_options=options)
-# driver.get('http://codepad.org')
-
-# # click radio button
-# python_button = driver.find_elements_by_xpath("//input[@name='lang' and @value='Python']")[0]
-# python_button.click()
-
-# # type text
-# text_area = driver.find_element_by_id('textarea')
-# text_area.send_keys("print('Hello World')")
-
-# # click submit button
-# submit_button = driver.find_elements_by_xpath('//*[@id="editor"]/table/tbody/tr[3]/td/table/tbody/tr/td/div/table/tbody/tr/td[3]/input')[0]
-# submit_button.click()
 
 
 
