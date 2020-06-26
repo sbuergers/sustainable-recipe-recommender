@@ -195,7 +195,7 @@ reviews_new = {}
 for i, url in enumerate(reviews.keys()):
 	
 	# Only run over a subset (e.g. already did the first 5000):
-	if i < 27200:
+	if i < 27200: # change manually!
 		continue
 	
 	if len(reviews[url]) == 25:
