@@ -137,6 +137,9 @@ def get_expanded_reviews_page(driver, fullurl):
 ## rather than rewriting the toolbox to also accept page content, adapt the 
 ## function that gets users reviews and include it here:
 def get_reviews(page):
+	"""Scrapes review texts from epicurious web-pages. Page is the HTML of the
+	web-page. result is a dictionary with recipe url-tags as keys and review
+	texts as values."""
 	fork_rating_re = re.compile('/(\d)_forks.png')
 	soup = bs(page, 'html.parser')
 	reviews = soup.findAll('', {'class': "most-recent"})
@@ -165,6 +168,8 @@ def get_reviews(page):
 # Includes adding adblock extension and skipping loading of images
 # NOTE: Occasionally restarting the driver speeds the process up tremendously!
 def initialize_selenium_session():
+	"""Initiates a selenium chrome session without loading images and an 
+	adblock extension."""
 	prefs = {'profile.managed_default_content_settings.images': 2} 
 	chrome_options = webdriver.ChromeOptions()
 	chrome_options.add_extension(r'D:\data science\nutrition\misc\AdBlockPlus.crx') 
