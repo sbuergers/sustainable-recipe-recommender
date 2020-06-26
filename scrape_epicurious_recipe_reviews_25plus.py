@@ -121,7 +121,7 @@ def get_expanded_reviews_page(driver, fullurl):
 		# Keep doing this until the button disappears or we time out with an error
 		start_time = time.time()
 		run_time = 0
-		timeout = 60
+		timeout = 90
 		while (button) and (not status == "no_button") and (run_time < timeout):
 			if status == "pop_up_interferes":
 				close_pop_up(driver)
@@ -168,6 +168,7 @@ def get_reviews(page):
 
 # Setup selenium webpage
 # Includes adding adblock extension and skipping loading of images
+# NOTE: Occasionally restarting the driver speeds the process up tremendously!
 prefs = {'profile.managed_default_content_settings.images': 2} 
 chrome_options = webdriver.ChromeOptions()
 chrome_options.add_extension(r'D:\data science\nutrition\misc\AdBlockPlus.crx') 
@@ -188,7 +189,7 @@ reviews_new = {}
 for i, url in enumerate(reviews.keys()):
 	
 	# Only run over a subset (e.g. already did the first 5000):
-	if i < 20200:
+	if i < 27200:
 		continue
 	
 	if len(reviews[url]) == 25:
@@ -249,6 +250,8 @@ for i, url in enumerate(reviews.keys()):
 print("--- %s seconds ---" % (time.time() - start_time))
 
 
+# Tidy up Selenium browser session
+driver.quit()
 
 
 
@@ -276,8 +279,10 @@ for idx, (i, j) in enumerate(zip(reviews_25plus.values(), reviews.values())):
 		n_diff += 1
 		print(idx, len(i), len(j), len(i)-len(j))
 print('There are', tot_diff, 'more reviews after updating, coming from', n_diff, 'recipes.')
-print('There are also', tot_neg, 'fewer recipes, because of failed attempts.')
+print('There are also at least', tot_neg, 'fewer recipes, because of failed attempts.')
 
+# Failed attempts result in fewer recipes than there actually are, this could
+# even be zero, hence the lower bound of missed reviews in the 2nd print stmt.
 
 
 ## eof
