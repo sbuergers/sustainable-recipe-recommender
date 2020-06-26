@@ -161,20 +161,26 @@ def get_reviews(page):
 	return result
 
 
+# Setup selenium webpage
+# Includes adding adblock extension and skipping loading of images
+# NOTE: Occasionally restarting the driver speeds the process up tremendously!
+def initialize_selenium_session():
+	prefs = {'profile.managed_default_content_settings.images': 2} 
+	chrome_options = webdriver.ChromeOptions()
+	chrome_options.add_extension(r'D:\data science\nutrition\misc\AdBlockPlus.crx') 
+	chrome_options.add_experimental_option('prefs', prefs) 
+	driver = webdriver.Chrome(options=chrome_options)
+	time.sleep(10) # wait a few seconds for chrome to open
+	return driver
+
+
 # recipe-scrapers works beautifully for recipes with less than 25
 # reviews. Here we are only looking at recipes with more than 25 reviews, 
 # because using selenium to click the "load more reviews" button is slow. 
 
 
-# Setup selenium webpage
-# Includes adding adblock extension and skipping loading of images
-# NOTE: Occasionally restarting the driver speeds the process up tremendously!
-prefs = {'profile.managed_default_content_settings.images': 2} 
-chrome_options = webdriver.ChromeOptions()
-chrome_options.add_extension(r'D:\data science\nutrition\misc\AdBlockPlus.crx') 
-chrome_options.add_experimental_option('prefs', prefs) 
-driver = webdriver.Chrome(options=chrome_options)
-time.sleep(10) # wait a few seconds for chrome to open
+# Initialize Selenium browser session
+driver = initialize_selenium_session()
 
 
 # Load recipe links (from scrape_epicurious_recipe_reviews.py)
@@ -217,7 +223,6 @@ for i, url in enumerate(reviews.keys()):
 			
 		print('Adding new reviews:', i, url, len(reviews[url]))
 	
-	
 	# Save periodically
 	reviews_new[url] = reviews[url]
 	if (i+1) % 200 == 0:
@@ -231,12 +236,10 @@ for i, url in enumerate(reviews.keys()):
 		else:
 			reviews_to_file = reviews_new
 		
-		
 		# Save reviews dictionary to json
 		with open('epi_reviews_25plus.txt', 'w') as io:
 			json.dump(reviews_to_file, io)
 		reviews_new = {}
-		
 		
 		# Write fail-log to file 
 		with open('epi_reviews_25plus_faillog.txt', 'a') as io:
@@ -245,6 +248,12 @@ for i, url in enumerate(reviews.keys()):
 		faillog = []
 		
 		print('\n ----- Saving to file ----- \n')
+		
+	# As Chrome slows down over time, it makes sense to periodically restart
+	# the Selenium session (i.e. close and restart)
+	if (i+1) % 1000 == 0:
+		driver.quit()
+		driver = initialize_selenium_session()
 		
 # Code timing
 print("--- %s seconds ---" % (time.time() - start_time))
