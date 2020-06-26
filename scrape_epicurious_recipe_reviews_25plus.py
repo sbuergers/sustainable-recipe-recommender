@@ -5,7 +5,7 @@ Created on Sun May 17 13:36:20 2020
 In scrape_epicurious_recipe_reviews.py all recipe links (previously retrieved
 scrape_epicurious_recipe_links.py) from the epicurious website 
 (https://www.epicurious.com/) are scraped for user reviews. However, these
-are missing all reviews beyond 20 (or 25?) per recipes. 
+are missing all reviews beyond 25 per recipe. 
 
 Here I am looking to find all additional recipe reviews, which can be found
 by using selenium to click a "view more reviews" button at the bottom of the
@@ -138,8 +138,8 @@ def get_expanded_reviews_page(driver, fullurl):
 ## function that gets users reviews and include it here:
 def get_reviews(page):
 	"""Scrapes review texts from epicurious web-pages. Page is the HTML of the
-	web-page. result is a dictionary with recipe url-tags as keys and review
-	texts as values."""
+	web-page. result is a dictionary with 'review_text' and 'rating' as keys,
+	including a string and integer as values, respectively."""
 	fork_rating_re = re.compile('/(\d)_forks.png')
 	soup = bs(page, 'html.parser')
 	reviews = soup.findAll('', {'class': "most-recent"})
@@ -193,7 +193,6 @@ driver = initialize_selenium_session()
 
 # Add "hidden" reviews where necessary
 start_time = time.time()
-N = len(reviews)
 faillog = []
 reviews_new = {}
 for i, url in enumerate(reviews.keys()):
