@@ -184,13 +184,12 @@ def initialize_selenium_session():
 # because using selenium to click the "load more reviews" button is slow. 
 
 
-# Initialize Selenium browser session
-driver = initialize_selenium_session()
-
-
 # Load recipe links (from scrape_epicurious_recipe_reviews.py)
 with open('epi_reviews20200619_232923.txt', 'r') as io:
 	reviews = json.load(io)
+	
+# Initialize Selenium browser session
+driver = initialize_selenium_session()
 
 # Add "hidden" reviews where necessary
 start_time = time.time()
@@ -200,7 +199,7 @@ reviews_new = {}
 for i, url in enumerate(reviews.keys()):
 	
 	# Only run over a subset (e.g. already did the first 5000):
-	if i < 27200: # change manually!
+	if i < 28000: # change manually!
 		continue
 	
 	if len(reviews[url]) == 25:
