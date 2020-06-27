@@ -240,7 +240,7 @@ for i, url in enumerate(reviews_25plus.keys()):
 	
 	# Save periodically
 	reviews_new[url] = reviews_25plus[url]
-	if (i+1) % 8000 == 0:
+	if ((i+1) % 8000 == 0) | (i==len(reviews_25plus)):
 		
 		# Saving dictionaries is a bit of a pain if done recurrently,
 		# but I can simply load in the previous dictionary and append

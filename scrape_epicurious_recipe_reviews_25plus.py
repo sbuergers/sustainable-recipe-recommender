@@ -198,7 +198,7 @@ reviews_new = {}
 for i, url in enumerate(reviews.keys()):
 	
 	# Only run over a subset (e.g. already did the first 5000):
-	if i < 28000: # change manually!
+	if i < 3000: # change manually!
 		continue
 	
 	if len(reviews[url]) == 25:
@@ -228,7 +228,7 @@ for i, url in enumerate(reviews.keys()):
 	
 	# Save periodically
 	reviews_new[url] = reviews[url]
-	if (i+1) % 200 == 0:
+	if (i+1) % 200 == 0 | (i==len(reviews))::
 		
 		# Saving dictionaries is a bit of a pain if done recurrently,
 		# but I can simply load in the previous dictionary and append
