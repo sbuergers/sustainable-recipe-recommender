@@ -181,40 +181,18 @@ def initialize_selenium_session():
 	return driver
 
 
-# Figure out which recipes to search for and try to re-scrape
+# Recipes that are in the faillog need to be re-scraped!
+import ast    
+with open('epi_reviews_25plus_faillog.txt', 'r') as io:
+	data = [ast.literal_eval(line) for line in io]
+fail_indeces = [d[0] for d in data]
 
-# 1.) Recipes that were saved with 0 reviews
-# Load old data (max 25 reviews per recipe)
-with open('epi_reviews20200619_232923.txt', 'r') as io:
-	reviews = json.load(io)
-# Load new data
+# Load recipe links (from scrape_epicurious_recipe_reviews_25plus.py)
 with open('epi_reviews_25plus.txt', 'r') as io:
 	reviews_25plus = json.load(io)
-tot_diff = 0
-tot_neg = 0
-n_diff = 0
-print('Idx | Cn | Co | Cn-Co')
-for idx, (i, j) in enumerate(zip(reviews_25plus.values(), reviews.values())):
-	if len(i) > len(j):
-		tot_diff += len(i)-len(j)
-	elif len(j) > len(i):
-		tot_neg += len(j)-len(i)
-	if len(i) != len(j):
-		n_diff += 1
-		print(idx, len(i), len(j), len(i)-len(j))
-print('There are', tot_diff, 'more reviews after updating, coming from', n_diff, 'recipes.')
-print('There are also at least', tot_neg, 'fewer recipes, because of failed attempts.')
-
-# 2.) Recipes that were added to the faillog of 
-# scrape_epicurious_recipe_reviews_25plus.py
-with open('epi_reviews_25plus_faillog.txt', 'r') as io:
-	failed_attempts = io.read()
-	fail_indeces = ...
-
-
-
+	
 # Load recipe links (from scrape_epicurious_recipe_reviews.py)
-with open('epi_reviews_25plus.txt', 'r') as io:
+with open('epi_reviews20200619_232923.txt', 'r') as io:
 	reviews = json.load(io)
 	
 # Initialize Selenium browser session
@@ -224,9 +202,18 @@ driver = initialize_selenium_session()
 start_time = time.time()
 faillog = []
 reviews_new = {}
-for i, url in enumerate(reviews.keys()):
+for i, url in enumerate(reviews_25plus.keys()):
 	
-	if (len(reviews[url]) < 25) | (i in fail_indeces):
+	# We need to re-scrape when we have fewer than 25 recipes in the
+	# epi_reviews_25plus data (aft. scrape_epicurious_recipe_reviews_25plus.py)
+	# and 25 exactly in the epi_reviews data (bef. scrape_..._25plus.py). This
+	# is because sometimes the script did not manage to load all the reviews,
+	# and instead saved 0 or a lower number than 25. It could also have been
+	# a larger number than 25, but still lower than the true number. In that
+	# case I simply loose those reviews. 
+	# Alternatively, I want to re-scrape when an entry has been made in the
+	# faillog.
+	if ( (len(reviews_25plus[url])<25) & (len(reviews[url])==25) ) | (i in fail_indeces):
 		
 		# Sometimes it simply does't work, retry a few times, otherwise
 		# remember where it failed
@@ -242,23 +229,23 @@ for i, url in enumerate(reviews.keys()):
 				page_reviews = get_reviews(page)
 			
 				# Update review dictionary with additional reviews
-				reviews[url] = page_reviews
+				reviews_25plus[url] = page_reviews
 				no_success = False
 			except:
 				num_tries += 1
 		if num_tries == 5:
 			faillog.append([i, url])
 			
-		print('Adding new reviews:', i, url, len(reviews[url]))
+		print('Adding new reviews:', i, url, len(reviews_25plus[url]))
 	
 	# Save periodically
-	reviews_new[url] = reviews[url]
-	if (i+1) % 200 == 0:
+	reviews_new[url] = reviews_25plus[url]
+	if (i+1) % 8000 == 0:
 		
 		# Saving dictionaries is a bit of a pain if done recurrently,
 		# but I can simply load in the previous dictionary and append
-		if path.exists('epi_reviews_25plus.txt'):
-			with open('epi_reviews_25plus.txt', 'r') as io:
+		if path.exists('epi_reviews_25plus_final.txt'):
+			with open('epi_reviews_25plus_final.txt', 'r') as io:
 				reviews_old = json.load(io)
 			reviews_to_file = {**reviews_old, **reviews_new}
 		else:
@@ -270,7 +257,7 @@ for i, url in enumerate(reviews.keys()):
 		reviews_new = {}
 		
 		# Write fail-log to file 
-		with open('epi_reviews_25plus_faillog.txt', 'a') as io:
+		with open('epi_reviews_25plus_final_faillog.txt', 'a') as io:
 			for item in faillog:
 				io.write('%s\n' % item)
 		faillog = []
@@ -289,6 +276,32 @@ print("--- %s seconds ---" % (time.time() - start_time))
 
 # Tidy up Selenium browser session
 driver.quit()
+
+
+
+#######
+## Test if adding additional reviews worked:
+	
+# Load old data (max 25 reviews per recipe)
+with open('epi_reviews20200619_232923.txt', 'r') as io:
+	reviews = json.load(io)
+# Load new data
+with open('epi_reviews_25plus_final.txt', 'r') as io:
+	reviews_25plus = json.load(io)
+tot_diff = 0
+tot_neg = 0
+n_diff = 0
+print('Idx | Cn | Co | Cn-Co')
+for idx, (i, j) in enumerate(zip(reviews_25plus.values(), reviews.values())):
+	if len(i) > len(j):
+		tot_diff += len(i)-len(j)
+	elif len(j) > len(i):
+		tot_neg += len(j)-len(i)
+	if len(i) != len(j):
+		n_diff += 1
+		print(idx, len(i), len(j), len(i)-len(j))
+print('There are', tot_diff, 'more reviews after updating, coming from', n_diff, 'recipes.')
+print('There are also at least', tot_neg, 'fewer recipes, because of failed attempts.')
 
 
 
