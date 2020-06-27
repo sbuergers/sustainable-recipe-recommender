@@ -170,8 +170,10 @@ df_dummy = df_dummy.loc[df_dummy.index.isin(df_rec['index'])]
 
 
 # (re-)load sparse user recipe matrix
+# NOTE: I should be able to speed this up if I only save the jagged array
+# parts of the csr matrix 
 try:
-	SM = scipy.sparse.load_npz('content_category_similarity.npz')
+	SM = scipy.sparse.load_npz(r'D:\data science\nutrition\content_category_similarity.npz')
 except:
 	# Compute cosine similarity matrix (takes ~2 min to run)
 	SM = cosine_similarity(csr_matrix(df_dummy.to_numpy(dtype=np.int8)), 
@@ -324,8 +326,8 @@ from collections import defaultdict
 
 
 
-## TODO: Fix title (recipe name) in df_users - should be unique!
-df_users = pd.read_csv('epi_users_reviews_incl_anonymous.csv', index_col=0)
+## Load user reviews 
+df_users = pd.read_csv(r'D:\data science\nutrition\epi_reviews_25plus_final_w_usernames.csv', index_col=0)
 df_users = df_users.loc[:,'user':'rating']
 
 # formalize rating scale
@@ -377,7 +379,7 @@ df_users[df_users['user']=='lschmidt']
 
 # For a given user and recipe, compare true rating with predicted rating
 uid = 'lschmidt'  
-iid = 'Autumn Gin Sour '
+iid = 'acorn-squash-with-kale-and-sausage-51203850'
 r = float(df_users.loc[(df_users['user']==uid) & (df_users['title']==iid),'rating'].values)
 
 # get a prediction for specific users and items.
@@ -394,7 +396,6 @@ def show_user_predictions(uid, df, algo):
 		
 		
 show_user_predictions('lschmidt', df_users, algo)
-
 
 
 

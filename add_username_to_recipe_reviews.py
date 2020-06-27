@@ -51,7 +51,7 @@ import time
 
 
 ## (re-)load review data
-with open('epi_reviews.txt') as json_file:
+with open(r'D:\data science\nutrition\epi_reviews_25plus_final.txt') as json_file:
     review_dict = json.load(json_file)
 	
 ## To do: Get user IDs out 
@@ -116,20 +116,8 @@ print('Found ', N_users_found, ' usernames out of ', N_users_total, ' reviews.')
 
 
 # Save updated reviews dictionary to json
-with open('epi_reviews_w_usernames.txt', 'w') as io:
+with open(r'D:\data science\nutrition\epi_reviews_25plus_final_w_usernames.txt', 'w') as io:
     json.dump(review_dict, io)
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
