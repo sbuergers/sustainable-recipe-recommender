@@ -69,10 +69,10 @@ with open(r'D:\data science\nutrition\epi_reviews_75plus.txt') as json_file:
 # and just squeezed the juice from them over the salad. I agree that it was 
 # very time consuming, but it was a crowd pleaser. Paired really well with 
 # sparkling wine.bainbridgebeck from Bainbridge Island WA"
-re_user_template1 = "(\.|\!|\?|\))([\s]+)?([\r\n]+)?\w+\s"
+re_user_template1 = "(\.|\!|\?|\))([\s]+)?([\r\n]+)?\w+\s+from"
 # "(\.|\!|\?|\))([\s]+)?([\r\n]+)?\w+\sfrom" 
 # "(\.|\!|\?\))\w+\sfrom"
-re_user_template2 = "(\.|\!|\?\))\w+$"
+re_user_template2 = "(\.|\!|\?\))[\s+]?\w+[\s+]?[\w+]?[\s+]?[\w+]?$"
 
 # User template examples:
 #
@@ -93,15 +93,11 @@ re_user_template2 = "(\.|\!|\?\))\w+$"
 
 # Go through reviews of each recipe and get out usernames
 users = []
-no_user_index = []
-N_users_found = 0
-N_users_total = 0
+anonymous_index = []
+n_rev = 0
 cook_num = 0
 recipe_titles = review_dict.keys()
 for i, title_raw in enumerate(recipe_titles):
-	
-	if i == 50:
-		break
 	
 	# Progress 
 	if i % (len(recipe_titles)/25) == 0:
@@ -110,39 +106,36 @@ for i, title_raw in enumerate(recipe_titles):
 	# Loop through reviews for this recipe
 	for j, review in enumerate(review_dict[title_raw]):
 		
+		n_rev += 1
+		
 		rating = review['rating']
 		review_text = review['review_text']
 		
 		# Try to find username with template1
 		username_match = re.search(re_user_template1, review_text)
-		
-		# if we did not match anything with template1, try template2
-		if username_match is None:
-			username_match = re.search(re_user_template2, review_text)
-			
-		# if we did not match anything, append empty list (no user matched)
-		if username_match is None:
-			username = ""
-			no_user_index.append((i,j))
-			print(review_text)
-			print('-----------------------------------------------------')
-		else:
+		if not username_match is None:
 			username = username_match.group(0).replace(' from', '').replace('.', '').lower()
-			# if the username is A cook the user is anonymous
-			if username == "a cook":
-				username = "a_cook" + str(cook_num)
-				cook_num += 1
+			
+		# if we did not match anything with template1, try template2
+		elif username_match is None:
+			username_match = re.search(re_user_template2, review_text)
+			if not username_match is None:
+				username = username_match.group(0).replace('.', '').strip().lower().split(' ')[0]
+			
+		# if we did not match anything, append unique ID (anonymous match)
+		if (username_match is None) | (username == "a cook"):
+			username = "a_cook" + str(cook_num)
+			cook_num += 1
+			anonymous_index.append((i,j))
 				
 		# Append username to dictionary
 		review_dict[title_raw][j]['username'] = username
-		
-		# Keep track of how many reviews could be assigned to someone
-		N_users_total = N_users_total + 1
-		if len(username) > 1:
-			N_users_found = N_users_found + 1
+		users.append(username)
 
-print('Found ', N_users_found, ' usernames out of ', N_users_total, ' reviews.')
 
+n_users = len(set(users))
+print('Found', n_users, 'usernames out of', n_rev, 'reviews. Out of these', 
+	  len(anonymous_index), 'were anonymous reviews.')
 
 
 # Save updated reviews dictionary to json
