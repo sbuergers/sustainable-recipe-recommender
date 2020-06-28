@@ -19,7 +19,7 @@ import os
 import pandas as pd
 
 def convert_reviews_dict_to_df(pathname=r'D:\data science\nutrition', 
-							   filename=r'epi_reviews_25plus_final_w_usernames'):
+							   filename=r'epi_reviews_75plus_w_usernames'):
 	
 	with open(os.path.join(pathname, filename + r".txt")) as json_file:
 	    data = json.load(json_file)

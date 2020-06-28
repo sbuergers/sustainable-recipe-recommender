@@ -25,16 +25,6 @@ import json
 import itertools
 
 
-
-
-
-# Load rating dataframe (user | title | rating)
-df_users = pd.read_csv('epi_users_reviews.csv')
-
-
-
-
-
 # Surprise libraries
 from surprise import Dataset
 from surprise import Reader
@@ -49,22 +39,38 @@ from collections import defaultdict
 
 
 
-# Only keep users with at least 10 rated items
-v = df_users['user'].value_counts()
-df_users_pruned = df_users[df_users['user'].isin(v.index[v.gt(9)])].copy()
-df_users_pruned.drop(columns=['Unnamed: 0'], inplace=True)
 
 
-# Get dataframes in standard shape for surprise (uncentered and centered)
-df = df_users_pruned.loc[:,'user':'rating']
-df_c = df_users_pruned.drop(columns=['rating'])
-df_c.columns = ['user', 'item', 'rating']
 
-# assume unrated items are neutral, and rated items perfect scores
+
+# Load rating dataframe (user | title | rating)
+df_users = pd.read_csv(r'D:\data science\nutrition\epi_reviews_25plus_final_w_usernames.csv', index_col=0)
+df_users = df_users.loc[:,'user':'rating']
+
+# formalize rating scale
 reader = Reader(rating_scale=(1, 4)) # for centered: (-3, 3)
 
 # put data into surprise format
-data = Dataset.load_from_df(df, reader)
+data = Dataset.load_from_df(df_users, reader)
+
+
+
+# # Only keep users with at least 10 rated items
+# v = df_users['user'].value_counts()
+# df_users_pruned = df_users[df_users['user'].isin(v.index[v.gt(9)])].copy()
+# df_users_pruned.drop(columns=['Unnamed: 0'], inplace=True)
+
+
+# # Get dataframes in standard shape for surprise (uncentered and centered)
+# df = df_users_pruned.loc[:,'user':'rating']
+# df_c = df_users_pruned.drop(columns=['rating'])
+# df_c.columns = ['user', 'item', 'rating']
+
+# # assume unrated items are neutral, and rated items perfect scores
+# reader = Reader(rating_scale=(1, 4)) # for centered: (-3, 3)
+
+# # put data into surprise format
+# data = Dataset.load_from_df(df, reader)
 
 
 

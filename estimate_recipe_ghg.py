@@ -327,7 +327,7 @@ from collections import defaultdict
 
 
 ## Load user reviews 
-df_users = pd.read_csv(r'D:\data science\nutrition\epi_reviews_25plus_final_w_usernames.csv', index_col=0)
+df_users = pd.read_csv(r'D:\data science\nutrition\epi_reviews_75plus_w_usernames.csv', index_col=0)
 df_users = df_users.loc[:,'user':'rating']
 
 # formalize rating scale
@@ -364,6 +364,62 @@ print(get_methods(data))
 
 # Fit a default SVD++ model using all training data and check predictions
 # (see https://surprise.readthedocs.io/en/stable/getting_started.html)
+def precision_recall_at_k(predictions, k=10, threshold=3.5):
+    '''Return precision and recall at k metrics for each user.'''
+    # First map the predictions to each user.
+    user_est_true = defaultdict(list)
+    for uid, _, true_r, est, _ in predictions:
+        user_est_true[uid].append((est, true_r))
+
+    precisions = dict()
+    recalls = dict()
+    for uid, user_ratings in user_est_true.items():
+
+        # Sort user ratings by estimated value
+        user_ratings.sort(key=lambda x: x[0], reverse=True)
+
+        # Number of relevant items
+        n_rel = sum((true_r >= threshold) for (_, true_r) in user_ratings)
+
+        # Number of recommended items in top k
+        n_rec_k = sum((est >= threshold) for (est, _) in user_ratings[:k])
+
+        # Number of relevant and recommended items in top k
+        n_rel_and_rec_k = sum(((true_r >= threshold) and (est >= threshold))
+                              for (est, true_r) in user_ratings[:k])
+
+        # Precision@K: Proportion of recommended items that are relevant
+        precisions[uid] = n_rel_and_rec_k / n_rec_k if n_rec_k != 0 else 1
+
+        # Recall@K: Proportion of relevant items that are recommended
+        recalls[uid] = n_rel_and_rec_k / n_rel if n_rel != 0 else 1
+
+    return precisions, recalls
+
+## Check precision and recall for K predictions for each user
+kf = KFold(n_splits=2)
+algo = SVDpp()
+
+for trainset, testset in kf.split(data):
+    algo.fit(trainset)
+    predictions = algo.test(testset)
+    precisions, recalls = precision_recall_at_k(predictions, k=15, threshold=3.5)
+
+    # Precision and recall can then be averaged over all users
+    print(sum(prec for prec in precisions.values()) / len(precisions))
+    print(sum(rec for rec in recalls.values()) / len(recalls))
+	
+## An item is considered relevant if its true rating rui is greater than a 
+## given threshold. An item is considered recommended if its estimated rating 
+## r^ui is greater than the threshold, and if it is among the k highest 
+## estimated ratings.
+
+## Remember that:
+## Recall = Sensitivity = TP / (TP + FN)
+## Recall = |{Recommended items that are relevant}| / |{Relevant items}|
+## Precision = TP / (TP + FP)
+## Precision = |{Recommended items that are relevant}| / |{Recommended items}|
+	
 
 # This creates a full "trainset", using all the data
 trainset = data.build_full_trainset()
@@ -371,6 +427,15 @@ trainset = data.build_full_trainset()
 # Fit model
 algo = SVDpp()
 algo.fit(trainset)
+
+# Save algorithm to file
+filename = r'D:\data science\nutrition\collab_filter_algo'
+dump.dump(filename, algo=algo)
+
+# Reload 
+_, algo = dump.load(filename)
+
+
 
 # Show distribution of ratings by users
 df_users['user'].value_counts()
@@ -458,6 +523,9 @@ for i, (uid, user_ratings) in enumerate(top_n.items()):
 	print('------- predicted to like --------')
 	[print(round(r*100)/100, '/', round(r_est*100)/100, iid) for (iid, r_est, r) in user_ratings]
 
+
+
+# 
 
 
 
