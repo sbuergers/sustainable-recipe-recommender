@@ -141,8 +141,14 @@ df_rec = pd.read_csv(r'D:\data science\nutrition\epi_recipes_with_ghg.csv',
 
 
 ## Recipe GHG emission histogram
-sns.distplot(df_rec['ghg'].dropna())
+plt.hist(df_rec['ghg'].dropna(), bins=300)
 plt.suptitle('Estimated GHG emission distribution from 35000 recipes')
+plt.xlim(0, 100)
+plt.xlabel('Green house gas emissions (kg CO2)')
+plt.ylabel('Number of recipes')
+plt.savefig('Figures/recipe_ghg_histogram_ingredients.png', dpi=300)
+plt.show()
+
 
 ## A log-ghg scale should be easier to visualize
 sns.distplot(df_rec['ghg_log10'].dropna())
@@ -153,6 +159,38 @@ plt.suptitle('Estimated GHG emission distribution from 35000 recipes')
 df_rec[(df_rec['ghg_log10']>1.35) & (df_rec['ghg_log10']<1.45)]
 
 
+
+## Illustrate GHG emissions for the base ingredient categories:
+## Read in look-up table for GHG emissions / sustainability
+df_GHG = pd.read_csv('GHG-emissions-by-life-cycle-stage.csv')
+
+## Visualize total GHG emissions
+srtid = df_GHG['Total'].sort_values().index
+plt.rcdefaults()
+ax = df_GHG.loc[srtid, 'Land use change':'Retail'].plot(kind='barh', stacked=True, figsize=(10,8))
+ax.set_yticklabels(df_GHG['Food product'][srtid])
+ax.set_xlabel('kg-CO2 emissions by kg-product')
+ax.set_title('Green house gas emissions by food product')
+plt.show()
+
+
+
+# # Replot with fewer ingredients fo illustration:
+# label_list = ['Beef (beef herd)', 'Pig Meat', 'Cheese', 'Dark Chocolate', 
+# 			  'Coffee', 'Olive Oil', 'Eggs', 'Tofu', 'Milk', 'Wheat & Rye (Bread)',
+# 			  'Peas', 'Bananas', 'Apples']
+# df_GHG.set_index(df_GHG['Food product'], inplace=True)
+
+# srtid = df_GHG.loc[label_list, 'Total'].sort_values().index
+
+# df_GHG = df_GHG.loc[label_list, :]
+# plt.rcdefaults()
+# ax = df_GHG.loc[srtid, 'Land use change':'Retail'].plot(kind='barh', stacked=True, figsize=(6,4))
+# ax.set_yticklabels(df_GHG['Food product'][srtid])
+# ax.set_xlabel('kg-CO2 emissions by kg-product')
+# ax.set_title('Green house gas emissions by food product')
+# plt.savefig('Figures/base_category_GHG_emissions.png', dpi=300,bbox_inches='tight')
+# plt.show()
 
 
 

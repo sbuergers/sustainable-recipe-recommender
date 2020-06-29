@@ -32,6 +32,10 @@ def convert_reviews_dict_to_df(pathname=r'D:\data science\nutrition',
 	rating = list()
 	for irec, rec_title in enumerate(recipe_titles):
 		
+		# progress
+		if (irec % (len(recipe_titles)/15) == 0):
+			print(irec, '- Processing reviews for', rec_title)
+					
 		# all reviews of this recipe
 		recipe = data[rec_title]
 		
@@ -39,7 +43,7 @@ def convert_reviews_dict_to_df(pathname=r'D:\data science\nutrition',
 		if recipe:
 			
 			for irev, review in enumerate(recipe):
-				
+
 				# when username is not "", i.e. empty, append info to lists 
 				if review['username']: 
 					user.append(review['username'])
@@ -62,7 +66,6 @@ def convert_reviews_dict_to_df(pathname=r'D:\data science\nutrition',
 	# add column with centered rating by user
 	rating_c = df_users.groupby('user').transform(lambda x: (x - x.mean()))
 	df_users['rating_c'] = rating_c
-	
 	
 	# save to csv
 	df_users.to_csv(os.path.join(pathname, filename + r".csv"))
