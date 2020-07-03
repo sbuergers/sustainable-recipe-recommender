@@ -35,8 +35,6 @@ import pickle
 import time
 
 
-
-
 ## Change some defaults for visualizing data frames
 pd.set_option("max_columns", 15)
 pd.set_option("max_rows", 15)
