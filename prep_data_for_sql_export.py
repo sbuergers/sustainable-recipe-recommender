@@ -135,8 +135,84 @@ df['url'] = remove_linebreaks(df_rec['url'])
 
 
 
-df_rec.to_csv(r'D:\data science\nutrition\epi_recipes_with_ghg.csv')
+df.to_csv(r'D:\data science\nutrition\data\epi_recipes_with_ghg.csv')
 
+
+
+## Save only columns where line-breaks really shouldn't be a problem for now
+df_basic = df.loc[:,['index', 'title', 'date', 'rating', 'calories', 'sodium', 
+				   'fat', 'protein', 'ghg', 'prop_ing', 
+				   'ghg_log10', 'url']]
+df_basic.to_csv(r'D:\data science\nutrition\data\recipes_sql.csv')
+
+
+
+
+
+## Prepare ingredients dataframe
+
+# Load preprocessed ingredient data (from impute_ingredient_ghg_values.py)
+df_ing = pd.read_csv(r'D:\data science\nutrition\ingredients_manually_processed2.csv',
+					 index_col=1)
+print(df_ing.columns)
+
+
+
+# Some recipe_ids are strange (e.g. 1/3), actually the whole data for those 
+# rows is messed up (repeating 1/3 in each column...), there are only 23 in 
+# total, so for now just drop them:
+fail_idx = []
+failed_recids = []
+recid_list = []
+for i, (ipt, rid) in enumerate(zip(df_ing['input'], df_ing['recipe_id'])):
+	if '/' in str(rid):
+		fail_idx.append(i)
+		failed_recids.append(rid)
+		# try to match by ingredients in df_rec and input in df_ing
+		for idx in df_rec.index:
+			ingre = df_rec.loc[idx,'ingredients'].split(',')[0].replace("[", "").replace("'", "").replace("]", "").lower()
+			if ingre == ipt:
+				print('Match foun', idx, ingre, ipt)
+				recid_list.append(int(idx))
+				break
+	else:
+		recid_list.append(int(rid))
+		
+df_ing = df_ing.drop(df_ing.index[fail_idx])
+
+# Drop all rows that do not exist in df_rec (wouldn't be able to reach them
+# anyway, and missing foreign keys are not allowed in sql)
+ing_recipe_ids = df_ing['recipe_id'].unique()
+print('Unique recipe IDs in recipes table:', len(df_rec['index']))
+print('Unique recipe IDs in ingredients table:', len(ing_recipe_ids))
+
+(list(set(ing_recipe_ids) - set(df_rec['index'].values))) 
+
+rec_to_ing = []
+ing_to_rec = []
+for i in ing_recipe_ids:
+	if i not in df_rec['index']:
+		ing_to_rec.append(i)
+		
+for i in df_rec['index']:
+	if i not in ing_recipe_ids:
+		rec_to_ing.append(i)
+		
+print('Recipe IDs in ingredients table not found in recipes table:', ing_to_rec)
+print('Recipe IDs in recipes table not found in ingredients table:', rec_to_ing)
+
+
+np.setdiff1d(list(ing_recipe_ids), list(df_rec['index'].values))
+	
+# Keep only columns for 
+# ingredientsID is implied by the index (saved automatically)
+# recipe_id = recipeID
+# ghg = emissions
+# ghg_missing = emissions_missing
+# ghg_new = emissions_imputed
+df_ing.rename(columns={"Unnamed: 0": "ingredientsID"}, inplace=True)
+df_ing_basic = df_ing.loc[:,['ingredientsID', 'recipe_id', 'ghg', 'ghg_missing', 'ghg_new']]
+df_ing_basic.to_csv(r'D:\data science\nutrition\data\ingredients_sql.csv', index=False)
 
 
 

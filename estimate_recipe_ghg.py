@@ -64,10 +64,12 @@ df_ing['recipe_id'] = recipe_id_str
 
 
 # I seem to have messed up a few recipe_id entries, try to fix
+fail_idx = []
 failed_recids = []
 recid_list = []
 for i, (ipt, rid) in enumerate(zip(df_ing['input'], df_ing['recipe_id'])):
 	if '/' in str(rid):
+		fail_idx.append(i)
 		failed_recids.append(rid)
 		# try to match by ingredients in df_rec and input in df_ing
 		for idx in df_rec.index:
@@ -85,6 +87,7 @@ df_ing['recipe_id_new'] = recid_list
 ## Check that they actually match by recipe_id in df_ing:
 randIdx = np.random.randint(low=0, high=df_rec.shape[0], size=1)[0]
 print(df_ing.loc[df_ing['recipe_id'] == str(randIdx), 'input'])
+print(' ')
 print(df_rec.loc[randIdx,'ingredients'])
 
 
