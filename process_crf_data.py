@@ -37,7 +37,7 @@ from categories_to_dummy import sublists_to_binaries, sublist_uniques
 
 
 # Load recipe data
-with open('epi_recipes_detailed', 'r') as io:
+with open(r'D:\data science\nutrition\epi_recipes_detailed', 'r') as io:
         data = json.load(io)
 		
 		
@@ -174,7 +174,7 @@ def replace_non_utf8(text):
 
 # Definitely delete linebreaks \n
 def remove_linebreaks(text):
-	return text.replace('\n', ' ')
+	return text.replace(r'\n', ' ')
 
 # Also make sure units can be understood
 def standardize_units(text):
@@ -222,7 +222,7 @@ lines
 
 
 # Write to file. 
-f=open('recipe1_ingredients.txt', 'w')
+f=open(r'D:\data science\nutrition\recipe1_ingredients.txt', 'w')
 f.writelines("%s\n" % replace_non_utf8(i) for i in lines)
 f.close()
 
@@ -297,12 +297,12 @@ def write_ingredients(outfile, ingredients):
 
 
 # Write recipe ingredients to file
-rec_id = write_ingredients('recipe_ingredients.txt', df['ingredients'])
+rec_id = write_ingredients(r'D:\data science\nutrition\recipe_ingredients.txt', df['ingredients'])
 	
 # The process is killed after 5-10 minutes in the unix docker environment
 # when I put in all data at once into crf++ so let's try putting in half:
-rec_id1 = write_ingredients('recipe_ingredients_part1.txt', df['ingredients'][0:18000])
-rec_id2 = write_ingredients('recipe_ingredients_part2.txt', df['ingredients'][18000:])
+rec_id1 = write_ingredients(r'D:\data science\nutrition\recipe_ingredients_part1.txt', df['ingredients'][0:18000])
+rec_id2 = write_ingredients(r'D:\data science\nutrition\recipe_ingredients_part2.txt', df['ingredients'][18000:])
 	
 
 
@@ -335,7 +335,7 @@ def textfile_count(filename):
 
 
 # Check rec_id length versus line count
-textfile_count('recipe_ingredients.txt')
+textfile_count(r'D:\data science\nutrition\recipe_ingredients.txt')
 print('Number of recipe IDs: ', len(rec_id))
 
 # Check part1
@@ -350,8 +350,8 @@ print('Number of recipe IDs: ', len(rec_id2))
 
 
 ## Read in CRF output:
-df1 = pd.read_json('crf_output_part1.txt')
-df2 = pd.read_json('crf_output_part2.txt')
+df1 = pd.read_json(r'D:\data science\nutrition\crf_output_part1.txt')
+df2 = pd.read_json(r'D:\data science\nutrition\crf_output_part2.txt')
 
 
 ## They do not match - in fact there is a mismatch of 1 less in the crf output
@@ -360,7 +360,7 @@ df2 = pd.read_json('crf_output_part2.txt')
 ## the input:
 from Levenshtein import distance
 	
-f = open("recipe_ingredients_part1.txt", "r", encoding='utf-8')
+f = open(r'D:\data science\nutrition\recipe_ingredients_part1.txt', "r", encoding='utf-8')
 text_input = f.readlines()
 crf_output = df1['input']
 equal_count = 0
@@ -422,8 +422,8 @@ df_crf.to_csv('crf_ingredients_table.csv')
 
 ## Reload data (note that by saving and loading I destroy the nice list
 ## structure of the categories column)
-df = pd.read_csv('epi_recipes_clean.csv')
-df_crf = pd.read_csv('crf_ingredients_table.csv')
+df = pd.read_csv(r'D:\data science\nutrition\epi_recipes_clean.csv')
+df_crf = pd.read_csv(r'D:\data science\nutrition\crf_ingredients_table.csv')
 
 
 # Now that I have some estimate of the quantities of ingredients in my recipes
@@ -462,72 +462,72 @@ print("I have", len(ingredient_names), "unique ingredient labels after removing 
 ## https://www.ars.usda.gov/northeast-area/beltsville-md-bhnrc/beltsville-human-nutrition-research-center/methods-and-application-of-food-composition-laboratory/mafcl-site-pages/sr11-sr28/ 
 ## It has just over 8000 unique ingredient labels. Try to match my labels
 ## to those standard ones:
-istd = pd.read_csv('ingredient_labels_standard.csv')
+# istd = pd.read_csv('ingredient_labels_standard.csv')
 
-## First attempt, simply convert everything to lower and assign label that
-## most closely matches a standard label:
-standard_labels = list(istd.Shrt_Desc)
-standard_labels = [x.lower() for x in standard_labels]
+# ## First attempt, simply convert everything to lower and assign label that
+# ## most closely matches a standard label:
+# standard_labels = list(istd.Shrt_Desc)
+# standard_labels = [x.lower() for x in standard_labels]
 
-## The standard labels can be quite long, but the main ingredient name is 
-## before the first comma, and maybe before the second, e.g. 
-## oil, avocado, ... ; so let's get all unique before first comma labels and
-## before second comma labels, i.e. both oil and oil, avocado
+# ## The standard labels can be quite long, but the main ingredient name is 
+# ## before the first comma, and maybe before the second, e.g. 
+# ## oil, avocado, ... ; so let's get all unique before first comma labels and
+# ## before second comma labels, i.e. both oil and oil, avocado
 
-## It is also important to note that the best fit might be either first and
-## then second term or second and then first term, like with oil, avocado. 
+# ## It is also important to note that the best fit might be either first and
+# ## then second term or second and then first term, like with oil, avocado. 
 
-## Create a standard ingredient label list including only the first and second
-## term from standard_labels (before first comma and before second comma).
-## Also add labels that are flipped (oil, olive becomes olive oil)
-pruned_label = []
-for label in standard_labels:
-	L = label.split(',')
-	if len(L) > 1:
-		pruned_label.append(L[0] + ' ' + L[1])
-		pruned_label.append(L[1] + ' ' + L[0])
-	pruned_label.append(L[0])
+# ## Create a standard ingredient label list including only the first and second
+# ## term from standard_labels (before first comma and before second comma).
+# ## Also add labels that are flipped (oil, olive becomes olive oil)
+# pruned_label = []
+# for label in standard_labels:
+# 	L = label.split(',')
+# 	if len(L) > 1:
+# 		pruned_label.append(L[0] + ' ' + L[1])
+# 		pruned_label.append(L[1] + ' ' + L[0])
+# 	pruned_label.append(L[0])
 
-## Drop duplicates
-pruned_label = list(np.unique(pruned_label))
+# ## Drop duplicates
+# pruned_label = list(np.unique(pruned_label))
 
-print('There are', len(pruned_label), 'standard ingredient labels to search')
-
-
-# Compute edit distance between crf labels and standard labels
-from Levenshtein import distance 
-
-def edit_dist(L1, L2, verbose=False):
-	'''
-	Parameters
-	----------
-	L1, L2 : List
-		List of strings.
-	verbose : Boolean
-		If True prints out progress
-	Returns
-	-------
-	D : Numpy array
-		Edit distance matrix between L1 and L2
-	'''
-	D = np.zeros((len(L1), len(L2)))
-	for i in range(0, len(L1)):
-		if verbose:
-			if i % 100 == 0:
-				print('Computing pairwise edit distance for row', i, 'out of', len(L1))
-		for j in range(0, len(L2)):
-			D[i,j] = distance(L1[i], L2[j])
-	return D
-
-# Compuate pairwise edit distances
-D = edit_dist(ingredient_names[0:100], pruned_label, verbose=True)
+# print('There are', len(pruned_label), 'standard ingredient labels to search')
 
 
+# # Compute edit distance between crf labels and standard labels
+# from Levenshtein import distance 
 
-# Check if we get sensible output
-for i, item in enumerate(ingredient_names[0:100]):
-	best_match = pruned_label[int(np.where(D[i,:] == np.amin(D[i,:]))[0][0])]
-	print(item, '-', best_match)
+# def edit_dist(L1, L2, verbose=False):
+# 	'''
+# 	Parameters
+# 	----------
+# 	L1, L2 : List
+# 		List of strings.
+# 	verbose : Boolean
+# 		If True prints out progress
+# 	Returns
+# 	-------
+# 	D : Numpy array
+# 		Edit distance matrix between L1 and L2
+# 	'''
+# 	D = np.zeros((len(L1), len(L2)))
+# 	for i in range(0, len(L1)):
+# 		if verbose:
+# 			if i % 100 == 0:
+# 				print('Computing pairwise edit distance for row', i, 'out of', len(L1))
+# 		for j in range(0, len(L2)):
+# 			D[i,j] = distance(L1[i], L2[j])
+# 	return D
+
+# # Compuate pairwise edit distances
+# D = edit_dist(ingredient_names[0:100], pruned_label, verbose=True)
+
+
+
+# # Check if we get sensible output
+# for i, item in enumerate(ingredient_names[0:100]):
+# 	best_match = pruned_label[int(np.where(D[i,:] == np.amin(D[i,:]))[0][0])]
+# 	print(item, '-', best_match)
 
 
 
@@ -807,7 +807,26 @@ df_map3 = pd.read_csv(r'D:\data science\nutrition\ingredient_labels_scnd_pass.cs
 					  names=['name_man_pruned1', 'name_man_pruned2'])
 df_pruned3 = pd.merge(df_pruned2, df_map3, on='name_man_pruned1', how='left')	
 
+# Use to_excel for saving (hopefully excel doesn't convert to dates then)
+df_pruned3.to_excel(r'D:\data science\nutrition\ingredients_manually_processed_firstsave.xlsx') 
+
+
+
+## At this point, do recipe_ids in df_pruned3 (ingredients) and df (recipes)
+## match?
+recipe_ids_ingredients = sorted([int(l) for l in list(set(df_pruned3['recipe_id']))])
+recipe_ids_recipes = sorted(list(set(df.index)))
+
+assert(len(recipe_ids_ingredients) == len(recipe_ids_recipes))
+assert(sorted(recipe_ids_ingredients) == sorted(recipe_ids_recipes))
+## Note that df_pruned3 (ingredients) maps to iloc in df (recipes), not to
+## 'index'!!!
+
+
+
+
 ## Save updated df_crf
+df_pruned3.to_csv(r'D:\data science\nutrition\ingredients_manually_processed_firstsave.csv')
 df_pruned3.to_csv(r'D:\data science\nutrition\ingredients_manually_processed.csv')
 
 

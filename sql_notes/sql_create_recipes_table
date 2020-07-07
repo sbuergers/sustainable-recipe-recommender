@@ -1,0 +1,33 @@
+-- Table: public.recipes
+
+-- DROP TABLE public.recipes;
+
+CREATE TABLE public.recipes
+(
+    "recipesID" bigint NOT NULL,
+    title character(250) COLLATE pg_catalog."default",
+    ingredients character(4000) COLLATE pg_catalog."default",
+    directions character(18000) COLLATE pg_catalog."default",
+    categories character(5000) COLLATE pg_catalog."default",
+    date date,
+    description character(5000) COLLATE pg_catalog."default",
+    rating numeric,
+    calories numeric,
+    sodium numeric,
+    fat numeric,
+    protein numeric,
+    emissions numeric,
+    prop_ingredients_found numeric,
+    emissions_log10 numeric,
+    url character(1000) COLLATE pg_catalog."default",
+    servings character(1000) COLLATE pg_catalog."default",
+	recipe_rawID integer NOT NULL,
+    CONSTRAINT recipes_pkey PRIMARY KEY ("recipesID")
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE public.recipes
+    OWNER to postgres;
+COMMENT ON TABLE public.recipes
+    IS 'each row is a recipe from www.epicurious.com';
