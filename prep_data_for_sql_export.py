@@ -43,6 +43,10 @@ from scipy.sparse import csr_matrix
 # Quantify similarity between recipes
 from sklearn.metrics.pairwise import cosine_similarity
 
+# Helper functions to convert json to dummy data frame
+from categories_to_dummy import sublists_to_binaries, sublist_uniques
+
+
 
 
 # ## ----- Add urls to df_rec dataset: -----
@@ -349,142 +353,244 @@ df_sql.drop(sql_complains).to_csv(r'D:\data science\nutrition\data\recipes_sql.c
 
 ## Verify that df_sql (pretty much my final data to be used) has sensible 
 ## ghg estimates for each recipe:
+from random import randint
 def verify_emission_scores(df):
-	## ...
+	r = randint(0, len(df))
+	print(df.iloc[r]['ingredients'])
+	print(' ')
+	print('Emission estimate =', df.iloc[r]['ghg'])
 	
+verify_emission_scores(df_sql)
 	
+
+## Load ingredient data
+df_ing = pd.read_csv(r'D:\data science\nutrition\ingredients_manually_processed2.csv')
+
+## Load older version of ingredient data
+df_ing_old = pd.read_csv(r'D:\data science\nutrition\ingredients_manually_processed.csv')
+
+
+## Load cleaned recipe data (before adding ghg estimates)
+df_rec = pd.read_csv(r'D:\data science\nutrition\epi_recipes_clean.csv',
+					 index_col=0)
+
+## Sometimes they don't match because df_ing contains both numbers and strings
+## as recipe_ids. There are also still 1/3 etc. in there sometimes...
+## For now, just convert to str...
+df_ing['recipe_id'] = [str(i) for i in df_ing['recipe_id']]
+
+
+
+
+## Map ingredient labels to each other (recipes to ingredients dfs)
+def compare_random_row(df_sql, df_ing):
+	r = randint(0, len(df_sql))
+	print('-----------------------------')
+	print(df_sql.loc[r,'title'])
+	print('-----------------------------')
+	print('--- Ingredients from df_sql ---')
+	print(df_sql.loc[r, 'ingredients'])
+	print('Emission estimate =', df_sql.loc[r, 'ghg'])
+	print(' ')
+	print('--- Ingredients from df_ing ---')
+	print(df_ing.loc[df_ing['recipe_id']==str(r),['input', 'ghg_new']])
+	print('Emission estimate =', sum(df_ing.loc[df_ing['recipe_id']==str(r),'ghg_new']))
+
+
+compare_random_row(df_sql, df_ing)
+
+
+
+## Loop through all recipe_IDs and check whether ingredients and recipes
+## match
+def test_emission_scores(df_rec, df_ing):
+	'''
+	Asserts that the green house gas emissions for a recipe match between the
+	recipes and ingredients dataframes for all recipes in df_rec
 	
+	Parameters
+	----------
+	df_rec : pandas dataframe
+		recipes dataframe 
+	df_ing : pandas dataframe
+		ingredients dataframe
+	'''
+	print('Asserting similarity between green house gas emissions of recipes and ingredients dataframes')
+	for idx in df_rec.index:
+		if idx % 1000 == 0:
+			print(idx)
+		try:
+			A = round(1000*df_rec.loc[idx,'ghg'])
+			B = round(1000*np.nansum(df_ing.loc[df_ing['recipe_id']==str(idx),'ghg_new']))
+			assert(A==B)
+		except AssertionError:
+			print('Could not assert emissions to be similar for recipe_id', idx)
+			
+test_emission_scores(df_sql, df_ing)
 	
-	
-	
-	
-	
+
+
+
+
+## Ok they all match... Let's move on to the user reviews
+
+
+
+
+
+
 ###########
-## Prepare user data for SQL table
+## Prepare user review data for SQL table
+
+## Load user reviews 
+reviews = pd.read_csv(r'D:\data science\nutrition\epi_reviews_75plus_w_usernames.csv', index_col=0)
+reviews = reviews.loc[:,'user':'rating']
+
+
+## Add recipeID to reviews dataframe
+## To do this properly for SQL I need to import the data from SQL, because I
+## deleted a few rows by hand, because of " errors, which are not deleted in 
+## df_sql at the moment.
+recipes = pd.read_csv(r'D:\data science\nutrition\data\recipes_exported_from_sql.csv')
+recipes_sub = recipes.loc[:,['recipesID', 'url']]
+recipes_sub['url'] = [r.strip() for r in recipes_sub['url']]
+
+
+## Merge recipesID into reviews
+reviews = reviews.merge(recipes_sub, 
+					 how='left', 
+					 left_on='title', 
+					 right_on='url')
+
+
+## Remove linebreaks and whitespaces from usernames and make sure they are all strings
+usernames = [str(u).strip().replace('\n', '').replace('\r', '') for u in reviews['user']]
+
+
+## Create final reviews dataframe for SQL (without review text for the moment)
+reviews_sql = reviews.loc[:,['user', 'rating', 'recipesID']].copy()
+reviews_sql['user'] = usernames
+
+## Remove rows for which I had excluded recipes
+reviews_sql['recipesID'] = reviews_sql['recipesID'].astype('int')
+reviews_sql.dropna(subset=['recipesID'], inplace=True)
+
+## In this case I am going to use the index as the SQL primary key
+reviews_sql.to_csv(r'D:\data science\nutrition\data\reviews_sql.csv', index=1)
 
 
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-## Save only columns where line-breaks really shouldn't be a problem for now
-df_basic = df.loc[:,['recipesID', 'title', 'date', 'rating', 'calories', 'sodium', 
-				   'fat', 'protein', 'ghg', 'prop_ing', 
-				   'ghg_log10', 'url', 'index']]
-df_basic.to_csv(r'D:\data science\nutrition\data\recipes_sql.csv', index=0)
-
-
-
-
-
-## Prepare ingredients dataframe
-
-# Load preprocessed ingredient data (from impute_ingredient_ghg_values.py)
-df_ing = pd.read_csv(r'D:\data science\nutrition\ingredients_manually_processed2.csv',
-					 index_col=1)
-print(df_ing.columns)
-
-
-## Go back to a point where I didn't somehow substitue whole rows with non-
-## sense like 1/3
-df_ing = pd.read_csv(r'D:\data science\nutrition\ingredients_manually_processed_firstsave.csv')
+## Let's see how I can prepare the data for my web-app:
 	
-# Some recipe_ids are strange (e.g. 1/3), actually the whole data for those 
-# rows is messed up (repeating 1/3 in each column...), there are only 23 in 
-# total, so for now just drop them:
-fail_idx = []
-failed_recids = []
-recid_list = []
-for i, (ipt, rid) in enumerate(zip(df_ing['input'], df_ing['recipe_id'])):
-	if '/' in str(rid):
-		fail_idx.append(i)
-		failed_recids.append(rid)
-		# try to match by ingredients in df_rec and input in df_ing
-		for idx in df_rec.index:
-			ingre = df_rec.loc[idx,'ingredients'].split(',')[0].replace("[", "").replace("'", "").replace("]", "").lower()
-			if ingre == ipt:
-				print('Match foun', idx, ingre, ipt)
-				recid_list.append(int(idx))
-				break
-	else:
-		recid_list.append(int(rid))
+# Load in recipes and reviews data frames
+recipes = pd.read_csv(r'D:\data science\nutrition\data\recipes_sql.csv', index_col=0)
+reviews = pd.read_csv(r'D:\data science\nutrition\data\reviews_sql.csv', index_col=0)
+
+
+# Convert recipes dataframe to category dummy coded data frame
+# 1.) get categories (columns of dataframe))
+sublist = "categories"
+column_names = set()
+for item in recipes[sublist]:
+	cur_elements = str(item).split(';')
+	column_names = set(list(set(cur_elements)) + list(column_names))
+print('There are', len(column_names), 'recipe categories in the dataset.')
+
+
+# 2.) fill in dummies (1 when in category otherwise 0)
+# pretty inefficient code, but not a problem (less than 1 min still)
+dummy_mat = np.zeros((recipes.shape[0],len(column_names)), dtype=np.float32)
+for i, item in enumerate(recipes[sublist]):
+	
+	# progress
+	if i % 1000 == 0:
+		print('Recipe', i, 'out of', recipes.shape[0])
 		
-df_ing = df_ing.drop(df_ing.index[fail_idx])
+	cur_elements = str(item).split(';')
+	for j, name in enumerate(column_names):
+		if name in cur_elements:
+			dummy_mat[i,j] = 1
+			
+			
+# 3.) Create dummy coded dataframe (not really necessary, but kind of nice to
+# have I ever want to look up what a column is)
+df_dummy = pd.DataFrame(dummy_mat)
+df_dummy.columns = list(column_names)
 
-# Drop all rows that do not exist in df_rec (wouldn't be able to reach them
-# anyway, and missing foreign keys are not allowed in sql)
-ing_recipe_ids = df_ing['recipe_id'].unique()
-print('Unique recipe IDs in recipes table:', len(df_rec['index']))
-print('Unique recipe IDs in ingredients table:', len(ing_recipe_ids))
 
-(list(set(ing_recipe_ids) - set(df_rec['index'].values))) 
+# 4.) Create similarity matrix using cosine similarity
+SM = cosine_similarity(csr_matrix(dummy_mat), dense_output=False)
 
-rec_to_ing = []
-ing_to_rec = []
-for i in ing_recipe_ids:
-	if i not in df_rec.index:
-		ing_to_rec.append(i)
+
+# takes ~10 min to run (2.4 GB)
+scipy.sparse.save_npz('./data/content_similarity.npz', SM)
+
+
+# 5.)  Keep only the 200 most similar recipes for each recipe
+def find_related_recipes(name, df_rec, N, SM):
+	rec_id = df_rec.index[df_rec['url'] == name]
+	similarities = np.flip(np.sort(SM[rec_id].todense(),axis=1)[:,-N:])
+	similarities = np.squeeze(np.asarray(similarities))
+	rel_rec_ids = np.flip(np.argsort(SM[rec_id].todense(),axis=1)[:,-N:])
+	rel_rec_ids = np.squeeze(np.asarray(rel_rec_ids))
+	return(rel_rec_ids, similarities)
+
+N = 200
+IDs_pruned = np.zeros((SM.shape[0], N), dtype=np.int16)
+SM_pruned = np.zeros((SM.shape[0], N), dtype=np.float32)
+for i, name in enumerate(recipes['url']):
+	
+	if i % 1000 == 0:
+		print('Retrieving the', N, 'most similar recipes for recipe', i, name)
 		
-for i in df_rec.index:
-	if i not in ing_recipe_ids:
-		rec_to_ing.append(i)
-		
-print('Recipe IDs in ingredients table not found in recipes table:', ing_to_rec)
-print('Recipe IDs in recipes table not found in ingredients table:', rec_to_ing)
-
-
-np.setdiff1d(list(ing_recipe_ids), list(df_rec.index.values))
-
-
+	IDs_pruned[i,:], SM_pruned[i,:] = find_related_recipes(name, recipes, N, SM)
+	
+	
+# save to file
+df_ids = pd.DataFrame(IDs_pruned)
+df_sm = pd.DataFrame(SM_pruned)
+df_ids.to_csv('./data/content_similarity_200_ids.csv')
+df_sm.to_csv('./data/content_similarity_200.csv')
 
 
 
 
-## At this point, do recipe_ids in df_pruned3 (ingredients) and df (recipes)
-## match?
-recipe_ids_ingredients = sorted([int(l) for l in list(set(df_ing['recipe_id']))])
-recipe_ids_recipes = sorted(list(set(df_rec.index)))
+# Test some code to use content based similarity for making predictions
+# This will be used in the web-app
 
-assert(len(recipe_ids_ingredients) == len(recipe_ids_recipes))
-assert(sorted(recipe_ids_ingredients) == sorted(recipe_ids_recipes))
+# recipe and review dataframes
+recipes = pd.read_csv(r'D:/data science/nutrition/data/recipes_sql.csv', index_col=0)
+reviews = pd.read_csv(r'D:/data science/nutrition/data/reviews_sql.csv', index_col=0)
 
-
-
-
-
-# Keep only columns for 
-# ingredientsID is implied by the index (saved automatically)
-# recipe_id = recipeID
-# ghg = emissions
-# ghg_missing = emissions_missing
-# ghg_new = emissions_imputed
-df_ing.rename(columns={"Unnamed: 0": "ingredientsID"}, inplace=True)
-df_ing_basic = df_ing.loc[:,['ingredientsID', 'recipe_id', 'ghg', 'ghg_missing', 'ghg_new']]
-df_ing_basic['ghg_missing'] = df_ing_basic['ghg_missing'].set_type('boolean')
-df_ing_basic.to_csv(r'D:\data science\nutrition\data\ingredients_sql.csv', index=False)
+# content based similarity
+CS_ids = pd.read_csv(r'D:/data science/nutrition/data/content_similarity_200_ids.csv', index_col=0)
+CS = pd.read_csv(r'D:/data science/nutrition/data/content_similarity_200.csv', index_col=0)
 
 
+# Users will search for recipes with key-words, implement search
+# For now keep it very simple and assume they know the recipe url
+
+
+# Make predictions / recommendations based on content based similarity
+def content_based_recommendations(url):
+	'''Given a recipe url, give me the N most similar recipes'''
+	
+search_term = recipes['url'][1239]
+recipes.index[recipes['url']==search_string].values
+
+Nsim = 200
+recipe_id = recipes.index[recipes['url'] == search_term].values
+similar_recipe_ids = abs(CS_ids.loc[recipe_id, :]).values
+results = recipes.loc[similar_recipe_ids[0], :]
+results['similarity'] = CS.loc[recipe_id, :].values[0]
+
+
+'yemeni-spice-rub-240754' in list(recipes['url'])
 
 
 
 
-
-
-
-
-
-
-
+## eof
