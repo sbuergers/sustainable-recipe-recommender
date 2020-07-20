@@ -570,6 +570,22 @@ CS_ids = pd.read_csv(r'D:/data science/nutrition/data/content_similarity_200_ids
 CS = pd.read_csv(r'D:/data science/nutrition/data/content_similarity_200.csv', index_col=0)
 
 
+
+# Make sure all rows in servings are strings
+recipes['servings'].fillna(' ', inplace=True)
+# replace double space with double underscore, then replace space with '',
+# then replace double underscore with space
+# servings = [serv.replace('  ', '__').replace(' ', '').replace('__', ' ') for serv in recipes['servings']]
+# recipes['servings'] = servings
+recipes['servings'] = [str(serv).replace(';', ' ') for serv in recipes['servings']]
+
+# Make sure date is seen as datetime object
+# from dateutil.parser import parse
+# datetime = [parse(date) for date in recipes['date']]
+recipes.to_csv(r'D:/data science/nutrition/data/recipes_sql.csv')
+
+
+
 # Users will search for recipes with key-words, implement search
 # For now keep it very simple and assume they know the recipe url
 

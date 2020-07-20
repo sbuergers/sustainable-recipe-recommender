@@ -51,16 +51,39 @@ print("--- %s seconds ---" % (time.time() - start_time))
 # for 34000 recipes it took 5.625 h
 
 
+
+
+
 # save to file
 with open('epi_recipe_images', 'wb') as io:
     # store the data as binary data stream
     pickle.dump(output, io)
 
 
-# # Load recipe links from pickle file
-# with open('epi_recipe_images', 'rb') as io:
-#     # read the data as binary data stream
-#     recipe_images = pickle.load(io)
+
+
+# Load recipe links from pickle file
+with open('epi_recipe_images', 'rb') as io:
+    # read the data as binary data stream
+    recipe_images = pickle.load(io)
+
+
+# merge with recipes data frame
+images = pd.DataFrame({'image_url': recipe_images})
+
+print('There are', len(images.dropna()), 'recipes with pictures.')
+
+recipes = pd.read_csv(r'D:/data science/nutrition/data/recipes_sql.csv', index_col=0)
+recipes = recipes.merge(images, left_on='index', right_index=True)
+
+
+
+recipes.to_csv(r'D:/data science/nutrition/data/recipes_sql.csv')
+
+
+
+
+
 
 
 
