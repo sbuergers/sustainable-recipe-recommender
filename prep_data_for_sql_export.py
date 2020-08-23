@@ -609,4 +609,29 @@ results['similarity'] = CS.loc[recipe_id, :].values[0]
 
 
 
+## Compare recipes ratings with reviews ratings
+## (one is already included in recipes, the other can be computed from reviews)
+## ... (should be the same really, but good to check) ... 
+## ...
+temp = recipes.copy()
+reviews_counts = reviews[['rating', 'recipesID']].groupby('recipesID').count()
+reviews_collap = reviews[['rating', 'recipesID']].groupby('recipesID').mean()
+reviews_collap['review_count'] = reviews_counts['rating']
+temp = temp.merge(reviews_collap, on='recipesID')
+temp[['rating_x', 'rating_y', 'review_count']]
+
+import matplotlib.pyplot as plt
+plt.scatter(temp['rating_x'], temp['rating_y'])
+
+
+## Overwrite ratings column in original recipes data frame and add number of
+## ratings given column. 
+recipes['rating'] = temp['rating_y']
+recipes['review_count'] = temp['review_count']
+
+recipes.to_csv(r'D:\data science\nutrition\data\recipes_sql.csv')
+
+
+
+
 ## eof
