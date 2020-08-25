@@ -57,6 +57,15 @@ df_rec = pd.read_csv(r'D:\data science\nutrition\epi_recipes_clean.csv',
 df_ing = pd.read_csv(r'D:\data science\nutrition\ingredients_manually_processed2.csv',
 					 index_col=0)
 
+# Some stats on how many ingredients have a GHG emissions value
+
+# What proportion of ingredients was assigned a greenhouse gas estimate?
+sum(df_ing['ghg_new'] == 0.0)
+len(df_ing) - sum(df_ing['ghg_new'] == 0.0)
+(len(df_ing) - sum(df_ing['ghg_new'] == 0.0)) / len(df_ing)
+
+
+
 # Make sure all recipe ids are seen as strings:
 recipe_id_str = [str(df_ing.loc[idx,'recipe_id']) for idx in df_ing.index]
 df_ing['recipe_id'] = recipe_id_str
