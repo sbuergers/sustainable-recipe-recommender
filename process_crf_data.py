@@ -133,7 +133,8 @@ print([x for x in df_dummy.columns])
 # included). 
 
 # Building the model works pretty straightforwardly in the docker cli by 
-# running the following from the project directory:
+# running the following from the project directory (note that because this
+# is a docker container, after leaving the session the model will be gone):
 	
 # docker pull mtlynch/ingredient-phrase-tagger
 # docker run -it mtlynch/ingredient-phrase-tagger bash

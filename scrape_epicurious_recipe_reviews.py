@@ -20,12 +20,6 @@ Reviews are saved in json format like so:
 # https://github.com/sbuergers/recipe-scrapers/blob/master/recipe_scrapers/epicurious.py
 from recipe_scrapers import scrape_me
 
-# Get HTML from website
-import requests
-
-# Regular expressions
-import re
-
 # Data management
 import pandas as pd 
 import json
@@ -53,7 +47,7 @@ ep_urls = ["https://www.epicurious.com" + i for i in recipe_links]
 # default. To retrieve reviews hidden by the "view more reviews" button,
 # I can use selenium. This is implemented in a different script, which only
 # considers the recipes found here, with more than the feault number of 
-# reviews. See scrape_epicurious_recipe_reviews_20plus.py.
+# reviews. See scrape_epicurious_recipe_reviews_25plus.py.
 start_time = time.time()
 
 # Set filename
