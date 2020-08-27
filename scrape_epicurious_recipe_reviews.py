@@ -90,8 +90,7 @@ print("--- %s seconds ---" % (time.time() - start_time))
 # Save reviews dictionary to json (append every 1000 recipes)
 with open(filename, 'w') as io:
     json.dump(review_dict, io)
-
-
+	
 
 ## eof
 

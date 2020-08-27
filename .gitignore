@@ -1,0 +1,28 @@
+.DS_Store
+.env
+.flaskenv
+*.pyc
+*.pyo
+venv/
+env/
+env*
+dist/
+build/
+*.egg
+*.egg-info/
+_mailinglist
+.tox/
+.cache/
+.pytest_cache/
+.idea/
+docs/_build/
+.vscode
+
+# Temporary figures from Altair
+static/bar_compare_emissions*
+
+# Coverage reports
+htmlcov/
+.coverage
+.coverage.*
+*,cover

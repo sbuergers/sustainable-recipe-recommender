@@ -228,7 +228,7 @@ for i, url in enumerate(reviews.keys()):
 	
 	# Save periodically
 	reviews_new[url] = reviews[url]
-	if (i+1) % 200 == 0 | (i==len(reviews))::
+	if (i+1) % 200 == 0 | (i==len(reviews)):
 		
 		# Saving dictionaries is a bit of a pain if done recurrently,
 		# but I can simply load in the previous dictionary and append
