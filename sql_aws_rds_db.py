@@ -30,7 +30,7 @@ conn = ps.connect(host=os.environ.get('AWS_POSTGRES_ADDRESS'),
                   user=os.environ.get('AWS_POSTGRES_USERNAME'),
                   password=os.environ.get('AWS_POSTGRES_PASSWORD'),
                   port=os.environ.get('AWS_POSTGRES_PORT'))
-cur = conn.cursor()
+cur = conn.cursor()		
 
 
 # check DB content
@@ -46,14 +46,14 @@ cur.execute(
 	'''
 	-- Table: public.recipes
 
-	-- DROP TABLE public.recipes;
+	DROP TABLE public.recipes;
 	
 	CREATE TABLE public.recipes
 	(
 	    "recipesID" bigint NOT NULL,
-	    title character(250) COLLATE pg_catalog."default",
-	    ingredients character(4000) COLLATE pg_catalog."default",
-	    categories character(5000) COLLATE pg_catalog."default",
+	    title character varying(250) COLLATE pg_catalog."default",
+	    ingredients character varying(4000) COLLATE pg_catalog."default",
+	    categories character varying(5000) COLLATE pg_catalog."default",
 	    date date,
 	    rating numeric,
 	    calories numeric,
@@ -63,12 +63,14 @@ cur.execute(
 	    emissions numeric,
 	    prop_ingredients numeric,
 	    emissions_log10 numeric,
-	    url character(1000) COLLATE pg_catalog."default",
-	    servings character(1000) COLLATE pg_catalog."default",
-	    recipe_rawid integer NOT NULL,
-	    image_url character(1000) COLLATE pg_catalog."default",
+	    url character varying(1000) COLLATE pg_catalog."default",
+	    servings character varying(1000) COLLATE pg_catalog."default",
+	    recipe_rawid bigint NOT NULL,
+	    image_url character varying(1000) COLLATE pg_catalog."default",
 	    perc_rating numeric,
 	    perc_sustainability numeric,
+		review_count numeric,
+		
 	    CONSTRAINT recipes_pkey PRIMARY KEY ("recipesID")
 	)
 	WITH (

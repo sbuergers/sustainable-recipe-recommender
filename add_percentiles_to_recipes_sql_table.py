@@ -104,17 +104,18 @@ recipes_new['perc_sustainability'] = sustainability_to_percentage(recipes_new)
 
 ## Finally, add columns from recipes_sql.csv that I couldn't load from the DB,
 ## and reorder to fit recipes SCHEMA
-recipes_extended = recipes_new.merge(recipes[['categories', 'date']],
+recipes_extended = recipes_new.merge(recipes[['categories', 'date', 'review_count']],
 									on='recipesID', how='left') 
 recipes_extended = recipes_extended[[
 	'recipesID', 'title', 'ingredients', 'categories', 'date', 
 	'rating', 'calories', 'sodium',
 	'fat', 'protein', 'ghg', 'prop_ing', 'ghg_log10', 'url', 'servings',
-    'index', 'image_url', 'perc_rating', 'perc_sustainability']]
+    'index', 'image_url', 'perc_rating', 'perc_sustainability', 'review_count']]
+
 
 ## Export data to .csv file and upload using pgadmin4
-## (probably faster than using psycopg2)
-recipes_extended.to_csv(r'D:\data science\nutrition\data\recipes_sql_27082020.csv',
+## (probably faster than using psycopg2). Note index=False.
+recipes_extended.to_csv(r'D:\data science\nutrition\data\recipes_sql_28082020.csv',
 						index=False)
 
 
