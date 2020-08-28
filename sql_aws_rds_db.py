@@ -41,19 +41,52 @@ cur.execute(query)
 cur.fetchall()
 
 
-# Create Table
-cur.execute("""
-			CREATE TABLE table_1
-                (column_1 integer, 
-                column_2 float,
-                column_3 varchar(50),
-                column_4 boolean);
-			""")
+# Create recipes Table
+cur.execute(
+	'''
+	-- Table: public.recipes
+
+	-- DROP TABLE public.recipes;
+	
+	CREATE TABLE public.recipes
+	(
+	    "recipesID" bigint NOT NULL,
+	    title character(250) COLLATE pg_catalog."default",
+	    ingredients character(4000) COLLATE pg_catalog."default",
+	    categories character(5000) COLLATE pg_catalog."default",
+	    date date,
+	    rating numeric,
+	    calories numeric,
+	    sodium numeric,
+	    fat numeric,
+	    protein numeric,
+	    emissions numeric,
+	    prop_ingredients numeric,
+	    emissions_log10 numeric,
+	    url character(1000) COLLATE pg_catalog."default",
+	    servings character(1000) COLLATE pg_catalog."default",
+	    recipe_rawid integer NOT NULL,
+	    image_url character(1000) COLLATE pg_catalog."default",
+	    perc_rating numeric,
+	    perc_sustainability numeric,
+	    CONSTRAINT recipes_pkey PRIMARY KEY ("recipesID")
+	)
+	WITH (
+	    OIDS = FALSE
+	)
+	TABLESPACE pg_default;
+	
+	ALTER TABLE public.recipes
+	    OWNER to postgres;
+	COMMENT ON TABLE public.recipes
+	    IS 'each row is a recipe';
+	''')
+	
 # Commit table creation
-# conn.commit()
+conn.commit()
 
 
-
+# Create content_similarity200 table
 cur.execute(
 	'''
 	CREATE TABLE public.content_similarity200
@@ -535,8 +568,7 @@ cur.fetchall()
 search_term = 'mango-toast-with-hazelnut-pepita-butter'
 
 
-# works: Select recipe IDs of 200 most similar recipes to 
-# reference (search_term)
+# Select recipe IDs of 200 most similar recipes to reference (search_term)
 cur.execute(sql.SQL("""
 			SELECT * FROM public.content_similarity200_ids AS csids
 			WHERE "recipeID" = (
@@ -578,6 +610,9 @@ recipes_sql = cur.fetchall()
 
 results = pd.DataFrame(recipes_sql, columns=col_sel) 
 results['similarity'] = CS
+
+
+cur.close()
 
 
 # eof
