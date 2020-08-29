@@ -113,6 +113,16 @@ recipes_extended = recipes_extended[[
     'index', 'image_url', 'perc_rating', 'perc_sustainability', 'review_count']]
 
 
+## I have whitespaces in character columns from previous SQL export, delete
+def strip_whitespace(recipes_extended, colname):
+	return [v.strip() if type(v)==str else '' for v in recipes_extended[colname].values]
+
+string_columns = ['title', 'ingredients', 'categories', 'url', 'servings',
+				  'image_url']
+for sc in string_columns:
+	recipes_extended[sc] = strip_whitespace(recipes_extended, sc)
+
+
 ## Export data to .csv file and upload using pgadmin4
 ## (probably faster than using psycopg2). Note index=False.
 recipes_extended.to_csv(r'D:\data science\nutrition\data\recipes_sql_28082020.csv',

@@ -46,7 +46,7 @@ cur.execute(
 	'''
 	-- Table: public.recipes
 
-	DROP TABLE public.recipes;
+	-- DROP TABLE public.recipes;
 	
 	CREATE TABLE public.recipes
 	(
@@ -563,55 +563,6 @@ cur.execute('''
 			 LIMIT 10
 		    ''')
 cur.fetchall()
-
-
-# How do I now use the sql output to recommend recipes?
-# For now do exact searches, later explore partial matching in sql
-search_term = 'mango-toast-with-hazelnut-pepita-butter'
-
-
-# Select recipe IDs of 200 most similar recipes to reference (search_term)
-cur.execute(sql.SQL("""
-			SELECT * FROM public.content_similarity200_ids AS csids
-			WHERE "recipeID" = (
-				SELECT "recipesID" FROM public.recipes
-				WHERE url = %s)
-			""").format(), [search_term])
-CS_ids = cur.fetchall()[0][1::]
-CS_ids = tuple([abs(CSid) for CSid in CS_ids])
-
-
-# Also select the actual similarity scores
-cur.execute(sql.SQL("""
-			SELECT * FROM public.content_similarity200
-			WHERE "recipeID" = (
-				SELECT "recipesID" FROM public.recipes
-				WHERE url = %s)
-			""").format(), [search_term])
-CS = cur.fetchall()[0][1::]
-CS = tuple([float(abs(s)) for s in CS])
-
-
-# Finally, select similar recipes themselves
-# Get only those column I actually use to speed things up
-col_sel = [
-	   'recipesID', 'title', 'ingredients', 'rating', 'calories', 'sodium', 
-	   'fat', 'protein', 'ghg', 'prop_ing', 'ghg_log10', 'url', 'servings', 
-	   'index'
-	     ]
-
-cur.execute(sql.SQL("""
-			SELECT "recipesID", "title", "ingredients",
-				   "rating", "calories", "sodium", "fat",
-				   "protein", "emissions", "prop_ingredients", 
-				   "emissions_log10", "url", "servings", "recipe_rawid"
-		    FROM public.recipes
-			WHERE "recipesID" IN %s
-			""").format(), [CS_ids])
-recipes_sql = cur.fetchall()
-
-results = pd.DataFrame(recipes_sql, columns=col_sel) 
-results['similarity'] = CS
 
 
 cur.close()
