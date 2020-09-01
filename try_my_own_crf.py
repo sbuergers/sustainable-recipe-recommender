@@ -4,23 +4,252 @@ Created on Sat Jun 20 15:56:38 2020
 
 Largely inspired by 
 https://www.analyticsvidhya.com/blog/2018/08/nlp-guide-conditional-random-fields-text-classification/
-
+https://www.depends-on-the-definition.com/named-entity-recognition-conditional-random-fields-python/
 @author: sbuer
 """
 
-#invoke libraries
-from bs4 import BeautifulSoup as bs
-from bs4.element import Tag
-import codecs
-import nltk
-from nltk import word_tokenize, pos_tag
-from sklearn.model_selection import train_test_split
-import pycrfsuite
-import os, os.path, sys
-import glob
-from xml.etree import ElementTree
+# data handling
 import numpy as np
+import pandas as pd
+pd.set_option('display.max_rows', 50)
+pd.set_option('display.max_columns', 20)
+
+# machine learning
+from sklearn.model_selection import train_test_split
+from sklearn_crfsuite import CRF
 from sklearn.metrics import classification_report
+
+# NLP
+from nltk.tokenize import WordPunctTokenizer
+
+
+
+
+# load ner (named entity recognition) dataset from Kaggle
+# https://www.kaggle.com/abhinavwalia95/entity-annotated-corpus#ner_dataset.csv
+# data = pd.read_csv(r'D:\data science\nutrition\ner_dataset\1014_4361_bundle_archive\ner_dataset.csv', encoding="latin1")
+
+
+# Use the tagged NYT ingredients dataset
+data = pd.read_csv(r'D:\data science\nutrition\scripts\ingredient-phrase-tagger\nyt-ingredients-snapshot-2015.csv', 
+				   encoding="utf-8", index_col=None)
+data.tail(10)
+
+words = list(set(data["Word"].values))
+n_words = len(words)
+print(n_words)
+
+# Tags: 'name', 'qty', 'range_end', 'unit', 'comment'
+# I will add the additional tag 'other', for parts of the input that do not
+# appear in any of the tagged output
+
+# I have to make sure to convert the quantities in the input (strings) to 
+# floats to match the output (I can then convert back to strings)
+# e.g. 1/4 --> 0.25
+# Consider this function from ingredient-phrase-tagger:
+def _parseNumbers(s):
+    """
+    Parses a string that represents a number into a decimal data type so that
+    we can match the quantity field in the db with the quantity that appears
+    in the display name. Rounds the result to 2 places.
+    """
+    ss = utils.unclump(s)
+
+    m3 = re.match('^\d+$', ss)
+    if m3 is not None:
+        return decimal.Decimal(round(float(ss), 2))
+
+    m1 = re.match(r'(\d+)\s+(\d)/(\d)', ss)
+    if m1 is not None:
+        num = int(m1.group(1)) + (float(m1.group(2)) / float(m1.group(3)))
+        return decimal.Decimal(str(round(num, 2)))
+
+    m2 = re.match(r'^(\d)/(\d)$', ss)
+    if m2 is not None:
+        num = float(m2.group(1)) / float(m2.group(2))
+        return decimal.Decimal(str(round(num, 2)))
+
+    return None
+
+# Try with one row
+sentence = []
+
+# Input words
+input_words = WordPunctTokenizer().tokenize(row.input)
+
+# Words in specific Tag
+names = str(row.name)
+
+qties = str(row.qty).strip().split()
+range_ends = str(row.range_end).strip().split()
+comments = str(row.comment).strip().split()
+
+for word in input_words:
+	print(word)
+	if word in names:
+		sentence.append((word, 'NAME'))
+	elif word in qties:
+		sentence.append((word, 'QTY'))
+	elif word in range_ends:
+		sentence.append((word, 'RANGE_END'))
+	elif word in comments:
+		sentence.append((word, 'COMMENT'))
+	else:
+		sentence.append((word, 'OTHER'))
+		
+
+doc = []
+for i, row in enumerate(data.itertuples()):
+	
+	sentence = []
+	for word in input_words:
+		
+	
+
+
+for i, row in enumerate(data.itertuples()):
+	print(i, row)
+	if i == 2:
+		break
+
+
+def formatData(input_col, tag_cols):
+	'''
+	DESCRIPTION:
+		Transform Ingredient DataFrame into list of lists of tuples, with each
+		tuple denoting a word and its tag and each inner list denoting a 
+		sentence.
+	INPUT:
+		input_col (str): Name of sentence column
+		tag_cols (str): Column
+	'''
+		
+
+# Check how it looks for one sentence
+getter = SentenceGetter(data)
+sent = getter.get_next()
+print(sent)
+
+
+# Get all sentences with Tags
+sentences = getter.sentences
+
+
+# Define features
+def word2features(sent, i):
+    word = sent[i][0]
+    postag = sent[i][1]
+
+    features = {
+        'bias': 1.0,
+        'word.lower()': word.lower(),
+        'word[-3:]': word[-3:],
+        'word[-2:]': word[-2:],
+        'word.isupper()': word.isupper(),
+        'word.istitle()': word.istitle(),
+        'word.isdigit()': word.isdigit(),
+        'postag': postag,
+        'postag[:2]': postag[:2],
+    }
+    if i > 0:
+        word1 = sent[i-1][0]
+        postag1 = sent[i-1][1]
+        features.update({
+            '-1:word.lower()': word1.lower(),
+            '-1:word.istitle()': word1.istitle(),
+            '-1:word.isupper()': word1.isupper(),
+            '-1:postag': postag1,
+            '-1:postag[:2]': postag1[:2],
+        })
+    else:
+        features['BOS'] = True
+
+    if i < len(sent)-1:
+        word1 = sent[i+1][0]
+        postag1 = sent[i+1][1]
+        features.update({
+            '+1:word.lower()': word1.lower(),
+            '+1:word.istitle()': word1.istitle(),
+            '+1:word.isupper()': word1.isupper(),
+            '+1:postag': postag1,
+            '+1:postag[:2]': postag1[:2],
+        })
+    else:
+        features['EOS'] = True
+
+    return features
+
+def sent2features(sent):
+    return [word2features(sent, i) for i in range(len(sent))]
+
+def sent2labels(sent):
+    return [label for token, postag, label in sent]
+
+def sent2tokens(sent):
+    return [token for token, postag, label in sent]
+
+
+# Craft features
+X = [sent2features(s) for s in sentences]
+y = [sent2labels(s) for s in sentences]
+
+
+# Fit the CRF
+crf = CRF(algorithm='lbfgs',
+          c1=0.1,
+          c2=0.1,
+          max_iterations=100,
+          all_possible_transitions=False)
+
+
+from sklearn.cross_validation import cross_val_predict
+from sklearn_crfsuite.metrics import flat_classification_report
+
+pred = cross_val_predict(estimator=crf, X=X, y=y, cv=5)
+
+report = flat_classification_report(y_pred=pred, y_true=y)
+print(report)
+
+
+crf.fit(X, y)
+
+
+# Inspect the model
+import eli5
+
+eli5.show_weights(crf, top=30)
+
+
+# Improve CRF with regularization
+crf = CRF(algorithm='lbfgs',
+c1=10,
+c2=0.1,
+max_iterations=100,
+all_possible_transitions=False)
+
+pred = cross_val_predict(estimator=crf, X=X, y=y, cv=5)
+
+report = flat_classification_report(y_pred=pred, y_true=y)
+print(report)
+
+crf.fit(X, y)
+
+
+eli5.show_weights(crf, top=30)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33,64 +262,21 @@ for i, doc in enumerate(docs):
     tagged = nltk.pos_tag(tokens)    
     data.append([(w, pos, label) for (w, label), (word, pos) in zip(doc, tagged)])
 
-def word2features(doc, i):
-    word = doc[i][0]
-    postag = doc[i][1]
-
-# Common features for all words. You may add more features here based on your custom use case
-features = [
-        'bias',
-        'word.lower=' + word.lower(),
-        'word[-3:]=' + word[-3:],
-        'word[-2:]=' + word[-2:],
-        'word.isupper=%s' % word.isupper(),
-        'word.istitle=%s' % word.istitle(),
-        'word.isdigit=%s' % word.isdigit(),
-        'postag=' + postag
-    ]
-
-# Features for words that are not at the beginning of a document
-if i > 0:
-        word1 = doc[i-1][0]
-        postag1 = doc[i-1][1]
-        features.extend([
-            '-1:word.lower=' + word1.lower(),
-            '-1:word.istitle=%s' % word1.istitle(),
-            '-1:word.isupper=%s' % word1.isupper(),
-            '-1:word.isdigit=%s' % word1.isdigit(),
-            '-1:postag=' + postag1
-        ])
-    else:
-        # Indicate that it is the 'beginning of a document'
-        features.append('BOS')
-
-# Features for words that are not at the end of a document
-if i < len(doc)-1:
-        word1 = doc[i+1][0]
-        postag1 = doc[i+1][1]
-        features.extend([
-            '+1:word.lower=' + word1.lower(),
-            '+1:word.istitle=%s' % word1.istitle(),
-            '+1:word.isupper=%s' % word1.isupper(),
-            '+1:word.isdigit=%s' % word1.isdigit(),
-            '+1:postag=' + postag1
-        ])
-    else:
-        # Indicate that it is the 'end of a document'
-        features.append('EOS')
-
-return features
-
-
-
-
-
 
 # Now we’ll build features and create train and test data frames.
 X = [extract_features(doc) for doc in data]
 y = [get_labels(doc) for doc in data]
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+
+
+
+
+
+
+
+
+
 
 
 
