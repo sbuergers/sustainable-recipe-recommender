@@ -714,6 +714,10 @@ cur.execute('''
 cur.fetchall()
 
 
+# TODO: Faciliate searching in categories column (using tsvector)
+# For this, check makup of categories column in DB (if I actually included it)
+
+
 # close DB connection
 cur.close()
 
