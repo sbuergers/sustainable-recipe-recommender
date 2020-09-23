@@ -34,14 +34,16 @@ cur = conn.cursor()
 
 
 # check DB content
-query = """SELECT * FROM pg_catalog.pg_tables
-            WHERE schemaname != 'pg_catalog'
-            AND schemaname != 'information_schema';"""
-cur.execute(query)
-cur.fetchall()
+def check_db_content(cur):
+	query = """SELECT * FROM pg_catalog.pg_tables
+	            WHERE schemaname != 'pg_catalog'
+	            AND schemaname != 'information_schema';"""
+	cur.execute(query)
+	return cur.fetchall()
 
 
 # Create recipes Table
+# TODO: Why assign character ranges to VARCHAR?!f
 cur.execute(
 	'''
 	-- Table: public.recipes
@@ -565,6 +567,154 @@ cur.execute('''
 cur.fetchall()
 
 
+# Add column to recipes table containing tsvector elements
+# of the recipe "title" column. Will make searching the DB
+# with user input much easier.
+# See https://www.compose.com/articles/mastering-postgresql-tools-full-text-search-and-phrase-search/
+
+# create connection and cursor    
+conn = ps.connect(host=os.environ.get('AWS_POSTGRES_ADDRESS'),
+                  database=os.environ.get('AWS_POSTGRES_DBNAME'),
+                  user=os.environ.get('AWS_POSTGRES_USERNAME'),
+                  password=os.environ.get('AWS_POSTGRES_PASSWORD'),
+                  port=os.environ.get('AWS_POSTGRES_PORT'))
+cur = conn.cursor()	
+
+# Create temporary table to test following code
+def make_temp_table(cur, conn):
+	cur.execute(
+		'''
+		CREATE TABLE public.test_table
+		(
+			"recipesID" bigint NOT NULL,
+			title VARCHAR,
+			title_tsv TSVECTOR,
+			PRIMARY KEY ("recipesID")
+		)
+		
+		WITH (
+		    OIDS = FALSE
+		)
+		TABLESPACE pg_default;
+		
+		ALTER TABLE public.test_table
+		OWNER to postgres;
+		''')
+	conn.commit()
+
+# Drop temporary table
+def drop_temp_table(cur, conn):
+	cur.execute(''' DROP TABLE IF EXISTS public.test_table; ''')
+	conn.commit()
+
+# Create temp table, 
+# check if it exists, 
+# then drop it again.
+# run step by step to see output
+make_temp_table(cur, conn)
+check_db_content(cur)
+drop_temp_table(cur, conn)
+check_db_content(cur)
+
+# Create temp table
+make_temp_table(cur, conn)
+check_db_content(cur)
+
+# Check new test_table
+cur.execute('''
+			SELECT column_name, data_type 
+			FROM information_schema.columns 
+			WHERE table_name = 'test_table';
+		    ''')
+cur.fetchall()
+
+cur.execute('''
+			SELECT * FROM test_table
+			LIMIT 1
+		    ''')
+cur.fetchall()
+
+
+# update test_table (fill with data from recipes table)
+cur.execute('''
+			INSERT INTO test_table ("recipesID", "title")
+			SELECT "recipesID", "title"
+			FROM recipes;
+			''')
+conn.commit()
+
+# show inserted data and overall size
+cur.execute('''
+			SELECT * FROM test_table
+			LIMIT 10
+		    ''')
+cur.fetchall()
+
+cur.execute(''' SELECT count(*) FROM test_table ''')
+cur.fetchall()
+
+cur.execute(''' SELECT count(*) FROM recipes ''')
+cur.fetchall()
+
+# Add tsvector column of "title" column
+cur.execute('''
+			UPDATE test_table
+			SET title_tsv = to_tsvector(title);
+			''')
+conn.commit()
+
+# show data
+cur.execute('''
+			SELECT * FROM test_table
+			LIMIT 10
+		    ''')
+cur.fetchall()
+
+# drop test table
+drop_temp_table(cur, conn)
+check_db_content(cur)
+
+
+# Add tsvector column of "title" column in recipes table
+# Show current column names
+cur.execute('''
+			SELECT column_name, data_type 
+			FROM information_schema.columns 
+			WHERE table_name = 'recipes';
+		    ''')
+cur.fetchall()
+
+# Add new column: title_tsv
+cur.execute('''
+			ALTER TABLE recipes
+			ADD COLUMN title_tsv TSVECTOR;
+		    ''')
+conn.commit()
+
+# Check if new column is there
+cur.execute('''
+			SELECT column_name, data_type 
+			FROM information_schema.columns 
+			WHERE table_name = 'recipes';
+		    ''')
+cur.fetchall()
+			
+# Populate title_tsv
+cur.execute('''
+			UPDATE recipes
+			SET title_tsv = to_tsvector(title);
+			''')
+conn.commit()
+
+# show data
+cur.execute('''
+			SELECT * FROM recipes
+			LIMIT 10
+		    ''')
+cur.fetchall()
+
+
+# close DB connection
 cur.close()
 
 
