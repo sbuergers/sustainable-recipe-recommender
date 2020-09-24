@@ -24,13 +24,15 @@ import psycopg2 as ps
 from psycopg2 import sql
 
 
-# create connection and cursor    
-conn = ps.connect(host=os.environ.get('AWS_POSTGRES_ADDRESS'),
-                  database=os.environ.get('AWS_POSTGRES_DBNAME'),
-                  user=os.environ.get('AWS_POSTGRES_USERNAME'),
-                  password=os.environ.get('AWS_POSTGRES_PASSWORD'),
-                  port=os.environ.get('AWS_POSTGRES_PORT'))
-cur = conn.cursor()		
+# create connection and cursor   
+def connect_to_DB(): 
+	conn = ps.connect(host=os.environ.get('AWS_POSTGRES_ADDRESS'),
+	                  database=os.environ.get('AWS_POSTGRES_DBNAME'),
+	                  user=os.environ.get('AWS_POSTGRES_USERNAME'),
+	                  password=os.environ.get('AWS_POSTGRES_PASSWORD'),
+	                  port=os.environ.get('AWS_POSTGRES_PORT'))
+	cur = conn.cursor()		
+	return conn, cur
 
 
 # check DB content
@@ -42,8 +44,12 @@ def check_db_content(cur):
 	return cur.fetchall()
 
 
+conn, cur = connect_to_DB()
+check_db_content(cur)
+
+
 # Create recipes Table
-# TODO: Why assign character ranges to VARCHAR?!f
+# TODO: Why assign character ranges to VARCHAR?!
 cur.execute(
 	'''
 	-- Table: public.recipes
@@ -572,14 +578,6 @@ cur.fetchall()
 # with user input much easier.
 # See https://www.compose.com/articles/mastering-postgresql-tools-full-text-search-and-phrase-search/
 
-# create connection and cursor    
-conn = ps.connect(host=os.environ.get('AWS_POSTGRES_ADDRESS'),
-                  database=os.environ.get('AWS_POSTGRES_DBNAME'),
-                  user=os.environ.get('AWS_POSTGRES_USERNAME'),
-                  password=os.environ.get('AWS_POSTGRES_PASSWORD'),
-                  port=os.environ.get('AWS_POSTGRES_PORT'))
-cur = conn.cursor()	
-
 # Create temporary table to test following code
 def make_temp_table(cur, conn):
 	cur.execute(
@@ -711,6 +709,28 @@ cur.execute('''
 			SELECT * FROM recipes
 			LIMIT 10
 		    ''')
+cur.fetchall()
+
+
+# check output of websearch_to_tsquery()
+cur.execute(sql.SQL(
+            """
+            SELECT websearch_to_tsquery('simple', '"vegan cookies"');
+            """))
+cur.fetchall()
+
+# Test free search with tsquery
+search_term = 'vegan cookies'
+N = 10
+cur.execute(sql.SQL(
+            """
+            SELECT "recipesID", "title", "title_tsv",
+                ts_rank_cd(title_tsv, query) AS rank
+            FROM public.recipes, websearch_to_tsquery('simple', %s) query
+            WHERE query @@ title_tsv
+            ORDER BY rank ASC
+            LIMIT %s
+            """).format(), [search_term, N])
 cur.fetchall()
 
 
