@@ -846,6 +846,7 @@ drop_temp_table(cur, conn)
 check_db_content(cur)
 
 
+# ===========================================================================
 # Add tsvector column of "categories" to recipes
 # Show current column names
 check_table_columns(cur, 'recipes')
@@ -896,6 +897,123 @@ cur.execute(sql.SQL(
             """).format(), [search_term, N])
 cur.fetchall()
 
+
+# ===========================================================================
+# Add ts_vector column for a combination of both title and categories, with
+# an added weight of which column is more important
+# See https://www.postgresql.org/docs/current/textsearch-controls.html
+
+# Create temporary DB for testing
+def make_temp_table3(cur, conn):
+	cur.execute(
+		'''
+		CREATE TABLE public.test_table
+		(
+			"recipesID" bigint NOT NULL,
+			categories VARCHAR,
+			title VARCHAR,
+			combined_tsv TSVECTOR,
+			PRIMARY KEY ("recipesID")
+		)
+		
+		WITH (
+		    OIDS = FALSE
+		)
+		TABLESPACE pg_default;
+		
+		ALTER TABLE public.test_table
+		OWNER to postgres;
+		''')
+	conn.commit()
+	
+	
+# Create temp table
+make_temp_table3(cur, conn)
+check_db_content(cur)
+
+# update test_table (fill with data from recipes table)
+cur.execute('''
+			INSERT INTO test_table ("recipesID", "categories", "title", "combined_tsv")
+			SELECT "recipesID", "categories", "title", 
+				setweight(to_tsvector(coalesce(title,'')), 'A') ||
+				setweight(to_tsvector(coalesce(categories,'')), 'B') as tsv
+			FROM recipes;
+			''')
+conn.commit()
+
+# show inserted data and overall size
+cur.execute('''
+			SELECT * FROM test_table
+			LIMIT 10
+		    ''')
+cur.fetchall()
+
+# drop test table
+drop_temp_table(cur, conn)
+check_db_content(cur)
+
+
+# ===========================================================================
+# Add combined_tsv column to recipes table
+
+cur.execute('''
+			INSERT INTO test_table ("recipesID", "categories", "title", "combined_tsv")
+			SELECT "recipesID", "categories", "title", 
+				setweight(to_tsvector(coalesce(title,'')), 'A') ||
+				setweight(to_tsvector(coalesce(categories,'')), 'B') as tsv
+			FROM recipes;
+			''')
+conn.commit()
+
+check_table_columns(cur, 'recipes')
+
+# Add new column: categories_tsv
+cur.execute('''
+			ALTER TABLE recipes
+			ADD COLUMN combined_tsv TSVECTOR;
+		    ''')
+conn.commit()
+
+# Check if new column is there
+check_table_columns(cur, 'recipes')
+
+# Populate categories_tsv
+cur.execute('''
+			UPDATE recipes
+			SET combined_tsv = 
+				setweight(to_tsvector(coalesce(title,'')), 'A') ||
+				setweight(to_tsvector(coalesce(categories,'')), 'B');
+			''')
+conn.commit()
+
+# show data
+cur.execute('''
+			SELECT * FROM recipes
+			LIMIT 10
+		    ''')
+cur.fetchall()
+
+
+# check output of websearch_to_tsquery()
+cur.execute(sql.SQL(
+            """
+            SELECT websearch_to_tsquery('simple', '"vegan cookies"');
+            """))
+cur.fetchall()
+
+# Test free search with tsquery
+search_term = 'vegan cookies'
+N = 10
+cur.execute(sql.SQL(
+            """
+            SELECT "recipesID", "title", "categories_tsv",
+                ts_rank_cd(combined_tsv, query) AS rank
+            FROM public.recipes, websearch_to_tsquery('simple', %s) query
+            WHERE query @@ categories_tsv
+            ORDER BY rank ASC
+            LIMIT %s
+            """).format(), [search_term, N])
+cur.fetchall()
 
 
 # TODO: Faciliate searching in categories column (using tsvector)
