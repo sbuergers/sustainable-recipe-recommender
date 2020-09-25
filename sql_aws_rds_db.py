@@ -585,7 +585,7 @@ cur.execute('''
 		    ''')
 cur.fetchall()
 
-
+# ===========================================================================
 # Add column to recipes table containing tsvector elements
 # of the recipe "title" column. Will make searching the DB
 # with user input much easier.
@@ -745,6 +745,157 @@ cur.execute(sql.SQL(
             LIMIT %s
             """).format(), [search_term, N])
 cur.fetchall()
+
+
+# ===========================================================================
+# Add tsvector columns to recipes table for 
+# 1. categories
+# 2. ingredients
+
+# Show columns of recipes table
+check_table_columns(cur, 'recipes')
+
+# Create temporary DB for testing
+def make_temp_table2(cur, conn):
+	cur.execute(
+		'''
+		CREATE TABLE public.test_table
+		(
+			"recipesID" bigint NOT NULL,
+			categories VARCHAR,
+			categories_tsv TSVECTOR,
+			ingredients VARCHAR,
+			ingredients_tsv TSVECTOR,
+			PRIMARY KEY ("recipesID")
+		)
+		
+		WITH (
+		    OIDS = FALSE
+		)
+		TABLESPACE pg_default;
+		
+		ALTER TABLE public.test_table
+		OWNER to postgres;
+		''')
+	conn.commit()
+	
+	
+# Create temp table
+make_temp_table2(cur, conn)
+check_db_content(cur)
+
+# Check new test_table
+cur.execute('''
+			SELECT column_name, data_type 
+			FROM information_schema.columns 
+			WHERE table_name = 'test_table';
+		    ''')
+cur.fetchall()
+
+cur.execute('''
+			SELECT * FROM test_table
+			LIMIT 1
+		    ''')
+cur.fetchall()
+
+
+# update test_table (fill with data from recipes table)
+cur.execute('''
+			INSERT INTO test_table ("recipesID", "categories", "ingredients")
+			SELECT "recipesID", "categories", "ingredients"
+			FROM recipes;
+			''')
+conn.commit()
+
+# show inserted data and overall size
+cur.execute('''
+			SELECT * FROM test_table
+			LIMIT 10
+		    ''')
+cur.fetchall()
+
+cur.execute(''' SELECT count(*) FROM test_table ''')
+cur.fetchall()
+
+cur.execute(''' SELECT count(*) FROM recipes ''')
+cur.fetchall()
+
+# Add tsvector column of "categories" and "ingredients" columns
+cur.execute('''
+			UPDATE test_table
+			SET categories_tsv = to_tsvector(categories);
+			
+			UPDATE test_table
+			SET ingredients_tsv = to_tsvector(ingredients);
+			''')
+conn.commit()
+
+# show inserted data
+cur.execute('''
+			SELECT * FROM test_table
+			LIMIT 10
+		    ''')
+cur.fetchall()
+
+
+# Not sure how much use the ingredients column is actually going to be...
+
+
+# drop test table
+drop_temp_table(cur, conn)
+check_db_content(cur)
+
+
+# Add tsvector column of "categories" to recipes
+# Show current column names
+check_table_columns(cur, 'recipes')
+
+# Add new column: categories_tsv
+cur.execute('''
+			ALTER TABLE recipes
+			ADD COLUMN categories_tsv TSVECTOR;
+		    ''')
+conn.commit()
+
+# Check if new column is there
+check_table_columns(cur, 'recipes')
+
+# Populate categories_tsv
+cur.execute('''
+			UPDATE recipes
+			SET categories_tsv = to_tsvector(categories);
+			''')
+conn.commit()
+
+# show data
+cur.execute('''
+			SELECT * FROM recipes
+			LIMIT 10
+		    ''')
+cur.fetchall()
+
+
+# check output of websearch_to_tsquery()
+cur.execute(sql.SQL(
+            """
+            SELECT websearch_to_tsquery('simple', '"vegan cookies"');
+            """))
+cur.fetchall()
+
+# Test free search with tsquery
+search_term = 'vegan cookies'
+N = 10
+cur.execute(sql.SQL(
+            """
+            SELECT "recipesID", "title", "categories_tsv",
+                ts_rank_cd(categories_tsv, query) AS rank
+            FROM public.recipes, websearch_to_tsquery('simple', %s) query
+            WHERE query @@ categories_tsv
+            ORDER BY rank ASC
+            LIMIT %s
+            """).format(), [search_term, N])
+cur.fetchall()
+
 
 
 # TODO: Faciliate searching in categories column (using tsvector)
