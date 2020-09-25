@@ -43,9 +43,22 @@ def check_db_content(cur):
 	cur.execute(query)
 	return cur.fetchall()
 
+# check table columns
+def check_table_columns(cur, table_name):
+	query = """ SELECT * FROM information_schema.columns
+				WHERE table_name = 'recipes';"""
+	cur.execute(query)
+	outp = cur.fetchall()
+	return [o[3] for o in outp]
 
+
+# Show DB info
 conn, cur = connect_to_DB()
 check_db_content(cur)
+
+
+# Show columns of recipes table
+check_table_columns(cur, 'recipes')
 
 
 # Create recipes Table
