@@ -1003,16 +1003,21 @@ cur.fetchall()
 
 # Test free search with tsquery
 search_term = 'vegan cookies'
+search_column = 'combined_tsv'
 N = 10
 cur.execute(sql.SQL(
             """
-            SELECT "recipesID", "title", "categories_tsv",
-                ts_rank_cd(combined_tsv, query) AS rank
+            SELECT "recipesID", "title", "url", "perc_rating",
+                "perc_sustainability", "review_count", "image_url",
+                "emissions", "prop_ingredients",
+                ts_rank_cd({}, query) AS rank
             FROM public.recipes, websearch_to_tsquery('simple', %s) query
-            WHERE query @@ categories_tsv
-            ORDER BY rank ASC
+            WHERE query @@ {}
+            ORDER BY rank DESC
             LIMIT %s
-            """).format(), [search_term, N])
+            """).format(sql.Identifier(search_column),
+                        sql.Identifier(search_column)),
+                        [search_term, N])
 cur.fetchall()
 
 
