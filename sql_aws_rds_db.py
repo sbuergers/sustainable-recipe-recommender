@@ -1027,12 +1027,6 @@ cur.fetchall()
 # None of the following should return true (empty returns are ok!)
 
 
-
-# Connect to DB
-conn, cur = connect_to_DB()
-check_db_content(cur)
-
-
 # For illustrative purposes, make a statement where sql injection works
 search_term = "''; select true; --"
 cur.execute("""
@@ -1126,7 +1120,33 @@ cur.execute(sql.SQL(
 cur.fetchall()
 # raises InvalidTextRepresentation error
 
+
 # the sql.SQL approach takes pretty good care of preventing sql injections!
+# but to be sure it works, always use format! 
+
+# Rewrite fuzzy search part1 using only .format()
+search_term = "chicken"
+search_column = 'combined_tsv'
+N = 10
+cur.execute(sql.SQL(
+            """
+            SELECT "recipesID", "title", "url", "perc_rating",
+                "perc_sustainability", "review_count", "image_url",
+                "emissions", "prop_ingredients",
+                ts_rank_cd({search_column}, query) AS rank
+            FROM public.recipes,
+                websearch_to_tsquery('simple', {search_term}) query
+            WHERE query @@ {search_column}
+            ORDER BY rank DESC
+            LIMIT {N}
+            """).format(
+                search_column=sql.Identifier(search_column),
+                search_term=sql.Literal(search_term),
+                N=sql.Literal(N)
+                )
+            )
+cur.fetchall()
+
 
 # close DB connection
 cur.close()
