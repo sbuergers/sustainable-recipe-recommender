@@ -52,7 +52,7 @@ def check_table_columns(cur, table_name):
 	return [o[3] for o in outp]
 
 
-# Show DB info
+# Connect to DB
 conn, cur = connect_to_DB()
 check_db_content(cur)
 
@@ -1021,9 +1021,112 @@ cur.execute(sql.SQL(
 cur.fetchall()
 
 
-# TODO: Faciliate searching in categories column (using tsvector)
-# For this, check makup of categories column in DB (if I actually included it)
+# ===========================================================================
+# Check vulnerability to SQL injection attacks
 
+# None of the following should return true (empty returns are ok!)
+
+
+
+# Connect to DB
+conn, cur = connect_to_DB()
+check_db_content(cur)
+
+
+# For illustrative purposes, make a statement where sql injection works
+search_term = "''; select true; --"
+cur.execute("""
+            SELECT * FROM recipes
+			WHERE title = %s
+            """ % search_term)
+cur.fetchall()
+
+
+# This actually also works with with sql.SQL
+search_term = "''; select true; --"
+cur.execute(sql.SQL(
+			"""
+            SELECT * FROM recipes
+			WHERE title = %s
+            """).format(), [search_term])
+cur.fetchall()
+
+
+# Using .format() in sql.SQL is needed
+search_term = "'; select true; --"
+cur.execute(sql.SQL(
+			"""
+            SELECT * FROM recipes
+			WHERE title = %s
+            """).format(), [search_term])
+cur.fetchall()
+
+
+# Test free search with tsquery
+search_term = "'; select true; --"
+cur.execute(sql.SQL(
+            """
+            SELECT  websearch_to_tsquery('simple', %s)
+            """).format(),[search_term])
+cur.fetchall()
+
+
+# Test free search with tsquery
+search_term = "'; select true; --"
+search_column = 'combined_tsv'
+N = 10
+cur.execute(sql.SQL(
+            """
+            SELECT "recipesID", "title", "url", "perc_rating",
+                "perc_sustainability", "review_count", "image_url",
+                "emissions", "prop_ingredients",
+                ts_rank_cd({}, query) AS rank
+            FROM public.recipes, websearch_to_tsquery('simple', %s) query
+            WHERE query @@ {}
+            ORDER BY rank DESC
+            LIMIT %s
+            """).format(sql.Identifier(search_column),
+                        sql.Identifier(search_column)),
+                        [search_term, N])
+cur.fetchall()
+
+
+# inject search_column
+search_term = "vegan cookies"
+search_column = "'; select true; --"
+N = 10
+cur.execute(sql.SQL(
+            """
+            SELECT "recipesID", "title", "url", "perc_rating",
+                "perc_sustainability", "review_count", "image_url",
+                "emissions", "prop_ingredients",
+                ts_rank_cd({}, query) AS rank
+            FROM public.recipes, websearch_to_tsquery('simple', %s) query
+            WHERE query @@ {}
+            ORDER BY rank DESC
+            LIMIT %s
+            """).format(sql.Identifier(search_column),
+                        sql.Identifier(search_column)),
+                        [search_term, N])
+cur.fetchall()
+# raises UndefinedColumn error
+
+
+# fuzzy search (no match found)
+# inject N
+N = "'; select true; --"
+cur.execute(sql.SQL(
+                        """
+                        SELECT "recipesID", "title", "url", "perc_rating",
+                            "perc_sustainability", "review_count", "image_url",
+                            "emissions", "prop_ingredients"
+                        FROM public.recipes
+                        LIMIT %s
+                        """).format(), [N])
+cur.fetchall()
+# raises InvalidTextRepresentation error
+
+# the sql.SQL approach takes pretty good care of preventing sql injections!
 
 # close DB connection
 cur.close()
