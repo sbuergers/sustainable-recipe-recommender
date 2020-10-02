@@ -23,6 +23,9 @@ load_dotenv()
 import psycopg2 as ps
 from psycopg2 import sql
 
+# code testing
+import pytest
+
 
 # create connection and cursor   
 def connect_to_DB(): 
@@ -1147,6 +1150,163 @@ cur.execute(sql.SQL(
             )
 cur.fetchall()
 
+
+
+# Connect to DB
+conn, cur = connect_to_DB()
+check_db_content(cur)
+
+
+with pytest.raises(ps.errors.UndefinedColumn):
+	search_term = "vegan cookies"
+	search_column = "'; select true; --"
+	N = 10
+	cur.execute(sql.SQL(
+	            """
+	            SELECT "recipesID", "title", "url", "perc_rating",
+	                "perc_sustainability", "review_count", "image_url",
+	                "emissions", "prop_ingredients",
+	                ts_rank_cd({}, query) AS rank
+	            FROM public.recipes, websearch_to_tsquery('simple', %s) query
+	            WHERE query @@ {}
+	            ORDER BY rank DESC
+	            LIMIT %s
+	            """).format(sql.Identifier(search_column),
+	                        sql.Identifier(search_column)),
+	                        [search_term, N])
+	cur.fetchall()
+
+
+# ===========================================================================
+# Replace all empty image_url entries with default image url:
+# ../static/image_placeholder_logo.png
+
+# Connect to DB
+conn, cur = connect_to_DB()
+check_db_content(cur)
+
+# Show columns of recipes table
+check_table_columns(cur, 'recipes')
+
+cur.execute(sql.SQL(
+            """
+            SELECT count(*) FROM recipes
+			WHERE image_url is NULL
+            """).format()
+            )
+cur.fetchall()
+
+# Create temporary table
+def make_temp_table4(cur, conn):
+	cur.execute(
+		'''
+		CREATE TABLE public.test_table
+		(
+			"recipesID" bigint NOT NULL,
+			image_url VARCHAR,
+			PRIMARY KEY ("recipesID")
+		)
+		
+		WITH (
+		    OIDS = FALSE
+		)
+		TABLESPACE pg_default;
+		
+		ALTER TABLE public.test_table
+		OWNER to postgres;
+		''')
+	conn.commit()
+
+# Drop temporary table
+def drop_temp_table(cur, conn):
+	cur.execute(''' DROP TABLE IF EXISTS public.test_table; ''')
+	conn.commit()
+
+# Create temp table, 
+# check if it exists, 
+# then drop it again.
+# run step by step to see output
+make_temp_table4(cur, conn)
+check_db_content(cur)
+drop_temp_table(cur, conn)
+check_db_content(cur)
+
+# Create temp table
+make_temp_table4(cur, conn)
+check_db_content(cur)
+
+
+# insert default image url in temp table
+cur.execute('''
+			INSERT INTO test_table ("recipesID", "image_url")
+			SELECT "recipesID", "image_url"
+			FROM recipes;
+			''')
+conn.commit()
+
+# show content
+cur.execute('''
+			SELECT * FROM test_table
+			LIMIT 100;
+			''')
+cur.fetchall()
+
+# replace all empty image_url entries with default image url
+cur.execute('''
+			UPDATE test_table
+			SET image_url = '../static/image_placeholder_logo.png'
+			WHERE image_url IS NULL;
+			''')
+conn.commit()
+
+# show content
+cur.execute('''
+			SELECT * FROM test_table
+			LIMIT 100;
+			''')
+cur.fetchall()
+
+# number of Null elements
+cur.execute('''
+			SELECT count(*) FROM test_table
+			WHERE image_url IS NULL;
+			''')
+cur.fetchall()
+
+
+# Ok great. Now drop test_table and do this for the recipes table
+drop_temp_table(cur, conn)
+check_db_content(cur)
+
+
+# replace all empty image_url entries with default image url in "recipes"
+cur.execute('''
+			UPDATE recipes
+			SET image_url = '../static/image_placeholder_logo.png'
+			WHERE image_url IS NULL;
+			''')
+conn.commit()
+
+# show content
+cur.execute('''
+			SELECT image_url FROM recipes
+			LIMIT 100;
+			''')
+cur.fetchall()
+
+# number of Null elements
+cur.execute('''
+			SELECT count(*) FROM recipes
+			WHERE image_url IS NULL;
+			''')
+cur.fetchall()	
+
+# number of placeholders
+cur.execute('''
+			SELECT count(*) FROM recipes
+			WHERE image_url = '../static/image_placeholder_logo.png';
+			''')
+cur.fetchall()	
 
 # close DB connection
 cur.close()
