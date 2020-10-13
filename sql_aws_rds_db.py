@@ -64,8 +64,13 @@ check_db_content(cur)
 check_table_columns(cur, 'recipes')
 
 
+# ===========================================================================
+#                             CREATING TABLES
+# ===========================================================================
+
 # Create recipes Table
 # TODO: Why assign character ranges to VARCHAR?!
+# I believe I did not do this in the end, did I creat it in pgadmin4 instead?
 cur.execute(
 	'''
 	-- Table: public.recipes
@@ -110,6 +115,8 @@ cur.execute(
 	
 # Commit table creation
 conn.commit()
+
+# ===========================================================================
 
 
 # Create content_similarity200 table
@@ -361,6 +368,8 @@ cur.execute('''
 cur.fetchall()
 
 
+# ===========================================================================
+
 # Create table for content_similarity200_IDs
 cur.execute(
 	'''
@@ -588,7 +597,44 @@ cur.execute('''
 		    ''')
 cur.fetchall()
 
+
 # ===========================================================================
+
+# Create users table
+cur.execute(
+	'''
+	CREATE TABLE public.users
+	(
+	    "userID" SERIAL,
+	    "username" varchar(20) NOT NULL UNIQUE,
+		"password" varchar(50) NOT NULL,
+		"email" varchar(50) UNIQUE,
+	    PRIMARY KEY ("userID")
+	)
+	WITH (
+	    OIDS = FALSE
+	);
+	
+	ALTER TABLE public.users
+	    OWNER to postgres;
+	''')
+	
+# Commit table creation
+conn.commit()
+
+check_db_content(cur)
+
+cur.execute('''
+			 SELECT * FROM public.users
+			 LIMIT 10
+		    ''')
+cur.fetchall()
+
+
+# ===========================================================================
+#                            TABLE ADJUSTMENTS
+# ===========================================================================
+
 # Add column to recipes table containing tsvector elements
 # of the recipe "title" column. Will make searching the DB
 # with user input much easier.
