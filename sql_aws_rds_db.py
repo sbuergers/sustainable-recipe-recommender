@@ -48,11 +48,36 @@ def check_db_content(cur):
 
 # check table columns
 def check_table_columns(cur, table_name):
-	query = """ SELECT * FROM information_schema.columns
-				WHERE table_name = 'recipes';"""
+	query = sql.SQL(
+		""" 
+		SELECT * FROM information_schema.columns
+		WHERE table_name = {table_name};
+		""").format(
+			table_name=sql.Literal(table_name)
+		)
 	cur.execute(query)
 	outp = cur.fetchall()
 	return [o[3] for o in outp]
+
+
+cur.execute(sql.SQL(
+            """
+            SELECT "recipesID", "title", "url", "perc_rating",
+                "perc_sustainability", "review_count", "image_url",
+                "emissions", "prop_ingredients",
+                ts_rank_cd({search_column}, query) AS rank
+            FROM public.recipes,
+                websearch_to_tsquery('simple', {search_term}) query
+            WHERE query @@ {search_column}
+            ORDER BY rank DESC
+            LIMIT {N}
+            """).format(
+                search_column=sql.Identifier(search_column),
+                search_term=sql.Literal(search_term),
+                N=sql.Literal(N)
+                )
+            )
+cur.fetchall()
 
 
 # Connect to DB
@@ -67,8 +92,8 @@ check_table_columns(cur, 'recipes')
 # ===========================================================================
 #                             CREATING TABLES
 # ===========================================================================
+# CREATE recipes TABLE
 
-# Create recipes Table
 # TODO: Why assign character ranges to VARCHAR?!
 # I believe I did not do this in the end, did I creat it in pgadmin4 instead?
 cur.execute(
@@ -117,9 +142,8 @@ cur.execute(
 conn.commit()
 
 # ===========================================================================
+# CREATE content_similarity200 TABLE
 
-
-# Create content_similarity200 table
 cur.execute(
 	'''
 	CREATE TABLE public.content_similarity200
@@ -369,8 +393,8 @@ cur.fetchall()
 
 
 # ===========================================================================
+# CREATE content_similarity200_IDs TABLE
 
-# Create table for content_similarity200_IDs
 cur.execute(
 	'''
 	CREATE TABLE public.content_similarity200_IDs
@@ -599,6 +623,7 @@ cur.fetchall()
 
 
 # ===========================================================================
+# CREATE users TABLE
 
 cur.execute(
 	'''
@@ -615,9 +640,10 @@ cur.execute(
 	CREATE TABLE public.users
 	(
 	    "userID" SERIAL,
-	    "username" varchar(20) NOT NULL UNIQUE,
-		"password" varchar(200) NOT NULL,
-		"email" varchar(50) UNIQUE,
+	    "username" VARCHAR(20) NOT NULL UNIQUE,
+		"password" VARCHAR(200) NOT NULL,
+		"email" VARCHAR(50) UNIQUE,
+		"created" TIMESTAMP,
 	    PRIMARY KEY ("userID")
 	)
 	WITH (
@@ -630,14 +656,76 @@ cur.execute(
 	
 # Commit table creation
 conn.commit()
-
 check_db_content(cur)
 
+# Check table contents (should be empty after creation)
 cur.execute('''
 			 SELECT * FROM public.users
 			 LIMIT 10
 		    ''')
 cur.fetchall()
+
+# Check table columns
+check_table_columns(cur, 'users')
+
+
+# ===========================================================================
+# CREATE likes TABLE
+
+# Connect to DB
+conn, cur = connect_to_DB()
+check_db_content(cur)
+
+# Drop table if it already exists
+cur.execute(
+	'''
+	DROP TABLE IF EXISTS public.likes;
+	'''
+	)
+conn.commit()
+check_db_content(cur)
+
+# Create users table
+cur.execute(
+	'''
+	CREATE TABLE public.likes
+	(
+        "likeID" BIGSERIAL,
+	    "userID" BIGINT NOT NULL,
+		"recipesID" BIGINT NOT NULL,
+		"created" TIMESTAMP,
+		PRIMARY KEY ("likeID"),
+		CONSTRAINT fk_users
+			FOREIGN KEY("userID")
+				REFERENCES users("userID")
+				ON DELETE SET NULL,
+		CONSTRAINT fk_recipes
+			FOREIGN KEY("recipesID")
+				REFERENCES recipes("recipesID")
+				ON DELETE SET NULL
+	)
+	WITH (
+	    OIDS = FALSE
+	);
+	
+	ALTER TABLE public.likes
+	    OWNER to postgres;
+	''')
+	
+# Commit table creation
+conn.commit()
+check_db_content(cur)
+
+# Check table contents (should be empty after creation)
+cur.execute('''
+			 SELECT * FROM public.likes
+			 LIMIT 10
+		    ''')
+cur.fetchall()
+
+# Check table columns
+check_table_columns(cur, 'likes')
+
 
 
 # ===========================================================================
