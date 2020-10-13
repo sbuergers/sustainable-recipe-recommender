@@ -694,6 +694,7 @@ cur.execute(
 	    "userID" BIGINT NOT NULL,
 		"recipesID" BIGINT NOT NULL,
 		"created" TIMESTAMP,
+		"rating" NUMERIC,
 		PRIMARY KEY ("likeID"),
 		CONSTRAINT fk_users
 			FOREIGN KEY("userID")
