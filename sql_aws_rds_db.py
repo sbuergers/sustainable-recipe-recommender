@@ -600,6 +600,15 @@ cur.fetchall()
 
 # ===========================================================================
 
+cur.execute(
+	'''
+	DROP TABLE IF EXISTS public.users;
+	'''
+	)
+conn.commit()
+check_db_content(cur)
+
+
 # Create users table
 cur.execute(
 	'''
@@ -607,7 +616,7 @@ cur.execute(
 	(
 	    "userID" SERIAL,
 	    "username" varchar(20) NOT NULL UNIQUE,
-		"password" varchar(50) NOT NULL,
+		"password" varchar(200) NOT NULL,
 		"email" varchar(50) UNIQUE,
 	    PRIMARY KEY ("userID")
 	)
