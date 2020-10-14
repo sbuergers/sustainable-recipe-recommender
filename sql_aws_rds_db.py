@@ -60,26 +60,6 @@ def check_table_columns(cur, table_name):
 	return [o[3] for o in outp]
 
 
-cur.execute(sql.SQL(
-            """
-            SELECT "recipesID", "title", "url", "perc_rating",
-                "perc_sustainability", "review_count", "image_url",
-                "emissions", "prop_ingredients",
-                ts_rank_cd({search_column}, query) AS rank
-            FROM public.recipes,
-                websearch_to_tsquery('simple', {search_term}) query
-            WHERE query @@ {search_column}
-            ORDER BY rank DESC
-            LIMIT {N}
-            """).format(
-                search_column=sql.Identifier(search_column),
-                search_term=sql.Literal(search_term),
-                N=sql.Literal(N)
-                )
-            )
-cur.fetchall()
-
-
 # Connect to DB
 conn, cur = connect_to_DB()
 check_db_content(cur)
@@ -87,6 +67,10 @@ check_db_content(cur)
 
 # Show columns of recipes table
 check_table_columns(cur, 'recipes')
+
+# User table
+check_table_columns(cur, 'users')
+
 
 
 # ===========================================================================
