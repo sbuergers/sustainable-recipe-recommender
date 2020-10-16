@@ -19,23 +19,54 @@ import os
 from dotenv import load_dotenv 
 load_dotenv()
 
-# for connecting to postgres database
-import psycopg2 as ps
-from psycopg2 import sql
+# flask and flask_sqlalchemy
+from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
 
 # code testing
 import pytest
 
 
-# create connection and cursor   
-def connect_to_DB(): 
-	conn = ps.connect(host=os.environ.get('AWS_POSTGRES_ADDRESS'),
-	                  database=os.environ.get('AWS_POSTGRES_DBNAME'),
-	                  user=os.environ.get('AWS_POSTGRES_USERNAME'),
-	                  password=os.environ.get('AWS_POSTGRES_PASSWORD'),
-	                  port=os.environ.get('AWS_POSTGRES_PORT'))
-	cur = conn.cursor()		
-	return conn, cur
+# instantiate Flask application with flask_sqlalchemy database
+load_dotenv('.env')
+app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_NATIVE_UNICODE'] = True
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+		"pool_pre_ping": True
+	}
+db = SQLAlchemy(app)	
+
+
+def fuzzy_search(search_term, search_column="url", N=160):
+	records = db.session.query(Recipe).\
+		select([])
+		
+	)
+    fuzzyMatches = db.session.execute(
+        """
+        SELECT "recipesID", "title", "url", "perc_rating",
+            "perc_sustainability", "review_count", "image_url",
+            "emissions", "prop_ingredients",
+            LEVENSHTEIN(:search_column, :search_term) AS "rank"
+        FROM public.recipes
+        WHERE :search_column LIKE :search_term_like
+        ORDER BY "rank" ASC
+        LIMIT :N
+        """, {
+            'search_column': search_column,
+            'search_term': search_term,
+            'search_term_like': '%'+search_term+'%',
+            'N': N
+        }
+    )
+    return fuzzyMatches.fetchall()
+
+test = fuzzy_search(search_term='chicken', N=10)
+test
 
 
 # check DB content
@@ -43,21 +74,53 @@ def check_db_content(cur):
 	query = """SELECT * FROM pg_catalog.pg_tables
 	            WHERE schemaname != 'pg_catalog'
 	            AND schemaname != 'information_schema';"""
-	cur.execute(query)
-	return cur.fetchall()
+	res = cur.execute(query)
+	return res.fetchall()
+
+check_db_content(db.session)
 
 # check table columns
 def check_table_columns(cur, table_name):
-	query = sql.SQL(
+	res = cur.execute(
 		""" 
 		SELECT * FROM information_schema.columns
-		WHERE table_name = {table_name};
-		""").format(
-			table_name=sql.Literal(table_name)
+		WHERE table_name = :table_name;
+		""", {'table_name': table_name}
 		)
-	cur.execute(query)
-	outp = cur.fetchall()
+	outp = res.fetchall()
 	return [o[3] for o in outp]
+
+check_table_columns(db.session, 'recipes')
+
+def phrase_search(cur, search_column, search_term, N=160):
+    query = text(
+		"""
+        SELECT "recipesID", "title", "url", "perc_rating",
+            "perc_sustainability", "review_count", "image_url",
+            "emissions", "prop_ingredients",
+            ts_rank_cd(:search_column, query) AS rank
+        FROM public.recipes,
+            websearch_to_tsquery('simple', :search_term) query
+		WHERE query @@ :search_column
+        ORDER BY rank DESC
+        LIMIT :N
+        """)
+    query = query.bindparams(
+            search_column='combined_tsv',
+            search_term='chicken',
+            N=10)
+    res = cur.execute(query)
+    matches = res.fetchall()
+    return matches
+
+phrase_search(cur=db.session,
+			  search_column='combined_tsv',
+			  search_term='chicken',
+			  N=10)
+
+
+
+
 
 # check table content
 def check_table_content(cur, table_name):
