@@ -689,15 +689,11 @@ cur.execute(
 	CREATE TABLE public.likes
 	(
         "likeID" BIGSERIAL,
-	    "userID" BIGINT NOT NULL,
+	    "username" VARCHAR NOT NULL,
+		"rating" NUMERIC,
 		"recipesID" BIGINT NOT NULL,
 		"created" TIMESTAMP,
-		"rating" NUMERIC,
 		PRIMARY KEY ("likeID"),
-		CONSTRAINT fk_users
-			FOREIGN KEY("userID")
-				REFERENCES users("userID")
-				ON DELETE SET NULL,
 		CONSTRAINT fk_recipes
 			FOREIGN KEY("recipesID")
 				REFERENCES recipes("recipesID")
@@ -725,6 +721,8 @@ cur.fetchall()
 # Check table columns
 check_table_columns(cur, 'likes')
 
+# Check table content (populated in pgadmin4 with reviews_sql.csv)
+check_table_content(cur, 'likes')
 
 
 # ===========================================================================

@@ -22,7 +22,10 @@ load_dotenv()
 # flask and flask_sqlalchemy
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import text
+from sqlalchemy import text, bindparam, String, Integer, Numeric
+
+# data handling
+import pandas as pd
 
 # code testing
 import pytest
@@ -41,12 +44,25 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
 db = SQLAlchemy(app)	
 
 
-def fuzzy_search(search_term, search_column="url", N=160):
-	records = db.session.query(Recipe).\
-		select([])
-		
-	)
-    fuzzyMatches = db.session.execute(
+
+
+def fuzzy_search(session, search_term, search_column="url", N=160):
+    """
+    DESCRIPTION:
+        Searches in recipes table column url for strings that include the
+        search_term. If none do, returns the top N results ordered
+        by edit distance in ascending order.
+    INPUT:
+        session: (Flask-)SQLAlchemy session object
+        search_term (str): String to look for in search_column
+        search_column (str): Column to search (default="url")
+        N (int): Max number of results to return
+    OUTPUT:
+        results (list of RowProxy objects): query results
+    """
+    # Most similar urls by edit distance that actually contain the
+    # search_term
+    query = text(
         """
         SELECT "recipesID", "title", "url", "perc_rating",
             "perc_sustainability", "review_count", "image_url",
@@ -56,1474 +72,298 @@ def fuzzy_search(search_term, search_column="url", N=160):
         WHERE :search_column LIKE :search_term_like
         ORDER BY "rank" ASC
         LIMIT :N
-        """, {
-            'search_column': search_column,
-            'search_term': search_term,
-            'search_term_like': '%'+search_term+'%',
-            'N': N
-        }
+        """,
+        bindparams=[
+            bindparam('search_column', value=search_column, type_=String),
+            bindparam('search_term', value=search_term, type_=String),
+            bindparam('search_term_like', value='%'+search_term+'%',
+                      type_=String),
+            bindparam('N', value=N, type_=Integer)
+        ]
     )
-    return fuzzyMatches.fetchall()
+    results = session.execute(query).fetchall()
 
-test = fuzzy_search(search_term='chicken', N=10)
-test
+    # If no results contain the search_term
+    if not results:
+        query = text(
+            """
+            SELECT "recipesID", "title", "url", "perc_rating",
+                "perc_sustainability", "review_count", "image_url",
+                "emissions", "prop_ingredients",
+                LEVENSHTEIN(:search_column, :search_term) AS "rank"
+            FROM public.recipes
+            ORDER BY "rank" ASC
+            LIMIT :N
+            """,
+            bindparams=[
+                bindparam('search_column', value=search_column, type_=String),
+                bindparam('search_term', value=search_term, type_=String),
+                bindparam('N', value=N, type_=Integer)
+            ]
+        )
+        results = session.execute(query).fetchall()
+    return results
 
 
-# check DB content
-def check_db_content(cur):
-	query = """SELECT * FROM pg_catalog.pg_tables
-	            WHERE schemaname != 'pg_catalog'
-	            AND schemaname != 'information_schema';"""
-	res = cur.execute(query)
-	return res.fetchall()
-
-check_db_content(db.session)
-
-# check table columns
-def check_table_columns(cur, table_name):
-	res = cur.execute(
-		""" 
-		SELECT * FROM information_schema.columns
-		WHERE table_name = :table_name;
-		""", {'table_name': table_name}
-		)
-	outp = res.fetchall()
-	return [o[3] for o in outp]
-
-check_table_columns(db.session, 'recipes')
-
-def phrase_search(cur, search_column, search_term, N=160):
+def phrase_search(session, search_term, N=160):
+    """
+    DESCRIPTION:
+        Searches in table recipes in combined_tsv column using tsquery
+        - a tsvector column in DB table recipes combining title and
+        categories.
+    INPUT:
+        session: (Flask-)SQLAlchemy session object
+        search_term (str): Search term
+        N (int): Max number of results to return
+    OUTPUT:
+        results (list of RowProxy objects): DB query result
+    """
     query = text(
-		"""
+        """
         SELECT "recipesID", "title", "url", "perc_rating",
             "perc_sustainability", "review_count", "image_url",
             "emissions", "prop_ingredients",
-            ts_rank_cd(:search_column, query) AS rank
+            ts_rank_cd(combined_tsv, query) AS "rank"
         FROM public.recipes,
             websearch_to_tsquery('simple', :search_term) query
-		WHERE query @@ :search_column
-        ORDER BY rank DESC
+        WHERE query @@ combined_tsv
+        ORDER BY "rank" DESC
         LIMIT :N
-        """)
-    query = query.bindparams(
-            search_column='combined_tsv',
-            search_term='chicken',
-            N=10)
-    res = cur.execute(query)
-    matches = res.fetchall()
-    return matches
-
-phrase_search(cur=db.session,
-			  search_column='combined_tsv',
-			  search_term='chicken',
-			  N=10)
-
-
-
-
-
-# check table content
-def check_table_content(cur, table_name):
-	query = sql.SQL(
-		""" 
-		SELECT * FROM {table_name}
-		LIMIT 10;
-		""").format(
-			table_name=sql.Identifier(table_name)
-		)
-	cur.execute(query)
-	return cur.fetchall()
-
-
-# Connect to DB
-conn, cur = connect_to_DB()
-check_db_content(cur)
-
-
-# Show columns of recipes table
-check_table_columns(cur, 'recipes')
-
-# User table
-check_table_columns(cur, 'users')
-
-# User table contents
-check_table_content(cur, 'users')
-
-
-# ===========================================================================
-#                             CREATING TABLES
-# ===========================================================================
-# CREATE recipes TABLE
-
-# TODO: Why assign character ranges to VARCHAR?!
-# I believe I did not do this in the end, did I creat it in pgadmin4 instead?
-cur.execute(
-	'''
-	-- Table: public.recipes
-
-	-- DROP TABLE public.recipes;
-	
-	CREATE TABLE public.recipes
-	(
-	    "recipesID" bigint NOT NULL,
-	    title character varying(250) COLLATE pg_catalog."default",
-	    ingredients character varying(4000) COLLATE pg_catalog."default",
-	    categories character varying(5000) COLLATE pg_catalog."default",
-	    date date,
-	    rating numeric,
-	    calories numeric,
-	    sodium numeric,
-	    fat numeric,
-	    protein numeric,
-	    emissions numeric,
-	    prop_ingredients numeric,
-	    emissions_log10 numeric,
-	    url character varying(1000) COLLATE pg_catalog."default",
-	    servings character varying(1000) COLLATE pg_catalog."default",
-	    recipe_rawid bigint NOT NULL,
-	    image_url character varying(1000) COLLATE pg_catalog."default",
-	    perc_rating numeric,
-	    perc_sustainability numeric,
-		review_count numeric,
-		
-	    CONSTRAINT recipes_pkey PRIMARY KEY ("recipesID")
-	)
-	WITH (
-	    OIDS = FALSE
-	)
-	TABLESPACE pg_default;
-	
-	ALTER TABLE public.recipes
-	    OWNER to postgres;
-	COMMENT ON TABLE public.recipes
-	    IS 'each row is a recipe';
-	''')
-	
-# Commit table creation
-conn.commit()
-
-# ===========================================================================
-# CREATE content_similarity200 TABLE
-
-cur.execute(
-	'''
-	CREATE TABLE public.content_similarity200
-	(
-	    "recipeID" bigint NOT NULL,
-	    "0" numeric,
-	    "1" numeric,
-	    "2" numeric,
-	    "3" numeric,
-	    "4" numeric,
-	    "5" numeric,
-	    "6" numeric,
-	    "7" numeric,
-	    "8" numeric,
-	    "9" numeric,
-	    "10" numeric,
-	    "11" numeric,
-	    "12" numeric,
-	    "13" numeric,
-	    "14" numeric,
-	    "15" numeric,
-	    "16" numeric,
-	    "17" numeric,
-	    "18" numeric,
-	    "19" numeric,
-	    "20" numeric,
-	    "21" numeric,
-	    "22" numeric,
-	    "23" numeric,
-	    "24" numeric,
-	    "25" numeric,
-	    "26" numeric,
-	    "27" numeric,
-	    "28" numeric,
-	    "29" numeric,
-	    "30" numeric,
-	    "31" numeric,
-	    "32" numeric,
-	    "33" numeric,
-	    "34" numeric,
-	    "35" numeric,
-	    "36" numeric,
-	    "37" numeric,
-	    "38" numeric,
-	    "39" numeric,
-	    "40" numeric,
-	    "41" numeric,
-	    "42" numeric,
-	    "43" numeric,
-	    "44" numeric,
-	    "45" numeric,
-	    "46" numeric,
-	    "47" numeric,
-	    "48" numeric,
-	    "49" numeric,
-	    "50" numeric,
-	    "51" numeric,
-	    "52" numeric,
-	    "53" numeric,
-	    "54" numeric,
-	    "55" numeric,
-	    "56" numeric,
-	    "57" numeric,
-	    "58" numeric,
-	    "59" numeric,
-	    "60" numeric,
-	    "61" numeric,
-	    "62" numeric,
-	    "63" numeric,
-	    "64" numeric,
-	    "65" numeric,
-	    "66" numeric,
-	    "67" numeric,
-	    "68" numeric,
-	    "69" numeric,
-	    "70" numeric,
-		"71" numeric,
-	    "72" numeric,
-	    "73" numeric,
-	    "74" numeric,
-	    "75" numeric,
-	    "76" numeric,
-	    "77" numeric,
-	    "78" numeric,
-	    "79" numeric,
-	    "80" numeric,
-		"81" numeric,
-	    "82" numeric,
-	    "83" numeric,
-	    "84" numeric,
-	    "85" numeric,
-	    "86" numeric,
-	    "87" numeric,
-	    "88" numeric,
-	    "89" numeric,
-	    "90" numeric,
-		"91" numeric,
-	    "92" numeric,
-	    "93" numeric,
-	    "94" numeric,
-	    "95" numeric,
-	    "96" numeric,
-	    "97" numeric,
-	    "98" numeric,
-	    "99" numeric,
-	    "100" numeric,
-	    "101" numeric,
-	    "102" numeric,
-	    "103" numeric,
-	    "104" numeric,
-	    "105" numeric,
-	    "106" numeric,
-	    "107" numeric,
-	    "108" numeric,
-	    "109" numeric,
-	    "110" numeric,
-	    "111" numeric,
-	    "112" numeric,
-	    "113" numeric,
-	    "114" numeric,
-	    "115" numeric,
-	    "116" numeric,
-	    "117" numeric,
-	    "118" numeric,
-	    "119" numeric,
-	    "120" numeric,
-	    "121" numeric,
-	    "122" numeric,
-	    "123" numeric,
-	    "124" numeric,
-	    "125" numeric,
-	    "126" numeric,
-	    "127" numeric,
-	    "128" numeric,
-	    "129" numeric,
-	    "130" numeric,
-	    "131" numeric,
-	    "132" numeric,
-	    "133" numeric,
-	    "134" numeric,
-	    "135" numeric,
-	    "136" numeric,
-	    "137" numeric,
-	    "138" numeric,
-	    "139" numeric,
-	    "140" numeric,
-	    "141" numeric,
-	    "142" numeric,
-	    "143" numeric,
-	    "144" numeric,
-	    "145" numeric,
-	    "146" numeric,
-	    "147" numeric,
-	    "148" numeric,
-	    "149" numeric,
-	    "150" numeric,
-	    "151" numeric,
-	    "152" numeric,
-	    "153" numeric,
-	    "154" numeric,
-	    "155" numeric,
-	    "156" numeric,
-	    "157" numeric,
-	    "158" numeric,
-	    "159" numeric,
-	    "160" numeric,
-	    "161" numeric,
-	    "162" numeric,
-	    "163" numeric,
-	    "164" numeric,
-	    "165" numeric,
-	    "166" numeric,
-	    "167" numeric,
-	    "168" numeric,
-	    "169" numeric,
-	    "170" numeric,
-		"171" numeric,
-	    "172" numeric,
-	    "173" numeric,
-	    "174" numeric,
-	    "175" numeric,
-	    "176" numeric,
-	    "177" numeric,
-	    "178" numeric,
-	    "179" numeric,
-	    "180" numeric,
-		"181" numeric,
-	    "182" numeric,
-	    "183" numeric,
-	    "184" numeric,
-	    "185" numeric,
-	    "186" numeric,
-	    "187" numeric,
-	    "188" numeric,
-	    "189" numeric,
-	    "190" numeric,
-		"191" numeric,
-	    "192" numeric,
-	    "193" numeric,
-	    "194" numeric,
-	    "195" numeric,
-	    "196" numeric,
-	    "197" numeric,
-	    "198" numeric,
-	    "199" numeric,
-	    PRIMARY KEY ("recipeID")
-	)
-	WITH (
-	    OIDS = FALSE
-	);
-	
-	ALTER TABLE public.content_similarity200
-	    OWNER to postgres;
-	''')
-	
-# Commit table creation
-conn.commit()
-
-
-# I insert the data using pgadmin4 for now, but I could insert data from here
-# using:
-'''
-data = [[5, 5.5, 'five', True], [5, 5.5, 'five', True], [5, 5.5, 'five', True]]
-insert_query = """INSERT INTO table_1
-                   (column_1, column_2, column_3, column_4)
-                   VALUES (%s, %s, %s, %s);"""
-# execute multiple inserts
-cur.executemany(insert_query, data)
-            
-# commit data insert
-conn.commit()
-'''
-
-# Delete or drop a table
-'''
-cur.execute("""DROP TABLE table_1""")
-conn.commit()
-'''
-
-
-# fetch some data from table public.content_similarity200
-cur.execute('''
-			 SELECT * FROM public.content_similarity200
-			 LIMIT 10
-		    ''')
-cur.fetchall()
-
-
-# ===========================================================================
-# CREATE content_similarity200_IDs TABLE
-
-cur.execute(
-	'''
-	CREATE TABLE public.content_similarity200_IDs
-	(
-	    "recipeID" bigint NOT NULL,
-	    "0" bigint,
-	    "1" bigint,
-	    "2" bigint,
-	    "3" bigint,
-	    "4" bigint,
-	    "5" bigint,
-	    "6" bigint,
-	    "7" bigint,
-	    "8" bigint,
-	    "9" bigint,
-	    "10" bigint,
-	    "11" bigint,
-	    "12" bigint,
-	    "13" bigint,
-	    "14" bigint,
-	    "15" bigint,
-	    "16" bigint,
-	    "17" bigint,
-	    "18" bigint,
-	    "19" bigint,
-	    "20" bigint,
-	    "21" bigint,
-	    "22" bigint,
-	    "23" bigint,
-	    "24" bigint,
-	    "25" bigint,
-	    "26" bigint,
-	    "27" bigint,
-	    "28" bigint,
-	    "29" bigint,
-	    "30" bigint,
-	    "31" bigint,
-	    "32" bigint,
-	    "33" bigint,
-	    "34" bigint,
-	    "35" bigint,
-	    "36" bigint,
-	    "37" bigint,
-	    "38" bigint,
-	    "39" bigint,
-	    "40" bigint,
-	    "41" bigint,
-	    "42" bigint,
-	    "43" bigint,
-	    "44" bigint,
-	    "45" bigint,
-	    "46" bigint,
-	    "47" bigint,
-	    "48" bigint,
-	    "49" bigint,
-	    "50" bigint,
-	    "51" bigint,
-	    "52" bigint,
-	    "53" bigint,
-	    "54" bigint,
-	    "55" bigint,
-	    "56" bigint,
-	    "57" bigint,
-	    "58" bigint,
-	    "59" bigint,
-	    "60" bigint,
-	    "61" bigint,
-	    "62" bigint,
-	    "63" bigint,
-	    "64" bigint,
-	    "65" bigint,
-	    "66" bigint,
-	    "67" bigint,
-	    "68" bigint,
-	    "69" bigint,
-	    "70" bigint,
-		"71" bigint,
-	    "72" bigint,
-	    "73" bigint,
-	    "74" bigint,
-	    "75" bigint,
-	    "76" bigint,
-	    "77" bigint,
-	    "78" bigint,
-	    "79" bigint,
-	    "80" bigint,
-		"81" bigint,
-	    "82" bigint,
-	    "83" bigint,
-	    "84" bigint,
-	    "85" bigint,
-	    "86" bigint,
-	    "87" bigint,
-	    "88" bigint,
-	    "89" bigint,
-	    "90" bigint,
-		"91" bigint,
-	    "92" bigint,
-	    "93" bigint,
-	    "94" bigint,
-	    "95" bigint,
-	    "96" bigint,
-	    "97" bigint,
-	    "98" bigint,
-	    "99" bigint,
-	    "100" bigint,
-	    "101" bigint,
-	    "102" bigint,
-	    "103" bigint,
-	    "104" bigint,
-	    "105" bigint,
-	    "106" bigint,
-	    "107" bigint,
-	    "108" bigint,
-	    "109" bigint,
-	    "110" bigint,
-	    "111" bigint,
-	    "112" bigint,
-	    "113" bigint,
-	    "114" bigint,
-	    "115" bigint,
-	    "116" bigint,
-	    "117" bigint,
-	    "118" bigint,
-	    "119" bigint,
-	    "120" bigint,
-	    "121" bigint,
-	    "122" bigint,
-	    "123" bigint,
-	    "124" bigint,
-	    "125" bigint,
-	    "126" bigint,
-	    "127" bigint,
-	    "128" bigint,
-	    "129" bigint,
-	    "130" bigint,
-	    "131" bigint,
-	    "132" bigint,
-	    "133" bigint,
-	    "134" bigint,
-	    "135" bigint,
-	    "136" bigint,
-	    "137" bigint,
-	    "138" bigint,
-	    "139" bigint,
-	    "140" bigint,
-	    "141" bigint,
-	    "142" bigint,
-	    "143" bigint,
-	    "144" bigint,
-	    "145" bigint,
-	    "146" bigint,
-	    "147" bigint,
-	    "148" bigint,
-	    "149" bigint,
-	    "150" bigint,
-	    "151" bigint,
-	    "152" bigint,
-	    "153" bigint,
-	    "154" bigint,
-	    "155" bigint,
-	    "156" bigint,
-	    "157" bigint,
-	    "158" bigint,
-	    "159" bigint,
-	    "160" bigint,
-	    "161" bigint,
-	    "162" bigint,
-	    "163" bigint,
-	    "164" bigint,
-	    "165" bigint,
-	    "166" bigint,
-	    "167" bigint,
-	    "168" bigint,
-	    "169" bigint,
-	    "170" bigint,
-		"171" bigint,
-	    "172" bigint,
-	    "173" bigint,
-	    "174" bigint,
-	    "175" bigint,
-	    "176" bigint,
-	    "177" bigint,
-	    "178" bigint,
-	    "179" bigint,
-	    "180" bigint,
-		"181" bigint,
-	    "182" bigint,
-	    "183" bigint,
-	    "184" bigint,
-	    "185" bigint,
-	    "186" bigint,
-	    "187" bigint,
-	    "188" bigint,
-	    "189" bigint,
-	    "190" bigint,
-		"191" bigint,
-	    "192" bigint,
-	    "193" bigint,
-	    "194" bigint,
-	    "195" bigint,
-	    "196" bigint,
-	    "197" bigint,
-	    "198" bigint,
-	    "199" bigint,
-	    PRIMARY KEY ("recipeID")
-	)
-	WITH (
-	    OIDS = FALSE
-	);
-	
-	ALTER TABLE public.content_similarity200
-	    OWNER to postgres;
-	''')
-	
-# Commit table creation
-conn.commit()
-
-
-# Check if data upload (from pgadmin4) worked
-cur.execute('''
-			 SELECT * FROM public.content_similarity200_IDs
-			 LIMIT 10
-		    ''')
-cur.fetchall()
-
-
-# ===========================================================================
-# CREATE users TABLE
-
-cur.execute(
-	'''
-	DROP TABLE IF EXISTS public.users;
-	'''
-	)
-conn.commit()
-check_db_content(cur)
-
-
-# Create users table
-cur.execute(
-	'''
-	CREATE TABLE public.users
-	(
-	    "userID" SERIAL,
-	    "username" VARCHAR(20) NOT NULL UNIQUE,
-		"password" VARCHAR(200) NOT NULL,
-		"email" VARCHAR(50) UNIQUE,
-		"created" TIMESTAMP,
-	    PRIMARY KEY ("userID")
-	)
-	WITH (
-	    OIDS = FALSE
-	);
-	
-	ALTER TABLE public.users
-	    OWNER to postgres;
-	''')
-	
-# Commit table creation
-conn.commit()
-check_db_content(cur)
-
-# Check table contents (should be empty after creation)
-cur.execute('''
-			 SELECT * FROM public.users
-			 LIMIT 10
-		    ''')
-cur.fetchall()
-
-# Check table columns
-check_table_columns(cur, 'users')
-
-
-# ===========================================================================
-# CREATE likes TABLE
-
-# Connect to DB
-conn, cur = connect_to_DB()
-check_db_content(cur)
-
-# Drop table if it already exists
-cur.execute(
-	'''
-	DROP TABLE IF EXISTS public.likes;
-	'''
-	)
-conn.commit()
-check_db_content(cur)
-
-# Create users table
-cur.execute(
-	'''
-	CREATE TABLE public.likes
-	(
-        "likeID" BIGSERIAL,
-	    "userID" BIGINT NOT NULL,
-		"recipesID" BIGINT NOT NULL,
-		"created" TIMESTAMP,
-		"rating" NUMERIC,
-		PRIMARY KEY ("likeID"),
-		CONSTRAINT fk_users
-			FOREIGN KEY("userID")
-				REFERENCES users("userID")
-				ON DELETE SET NULL,
-		CONSTRAINT fk_recipes
-			FOREIGN KEY("recipesID")
-				REFERENCES recipes("recipesID")
-				ON DELETE SET NULL
-	)
-	WITH (
-	    OIDS = FALSE
-	);
-	
-	ALTER TABLE public.likes
-	    OWNER to postgres;
-	''')
-	
-# Commit table creation
-conn.commit()
-check_db_content(cur)
-
-# Check table contents (should be empty after creation)
-cur.execute('''
-			 SELECT * FROM public.likes
-			 LIMIT 10
-		    ''')
-cur.fetchall()
-
-# Check table columns
-check_table_columns(cur, 'likes')
-
-
-
-# ===========================================================================
-#                            TABLE ADJUSTMENTS
-# ===========================================================================
-
-# Add column to recipes table containing tsvector elements
-# of the recipe "title" column. Will make searching the DB
-# with user input much easier.
-# See https://www.compose.com/articles/mastering-postgresql-tools-full-text-search-and-phrase-search/
-
-# Create temporary table to test following code
-def make_temp_table(cur, conn):
-	cur.execute(
-		'''
-		CREATE TABLE public.test_table
-		(
-			"recipesID" bigint NOT NULL,
-			title VARCHAR,
-			title_tsv TSVECTOR,
-			PRIMARY KEY ("recipesID")
-		)
-		
-		WITH (
-		    OIDS = FALSE
-		)
-		TABLESPACE pg_default;
-		
-		ALTER TABLE public.test_table
-		OWNER to postgres;
-		''')
-	conn.commit()
-
-# Drop temporary table
-def drop_temp_table(cur, conn):
-	cur.execute(''' DROP TABLE IF EXISTS public.test_table; ''')
-	conn.commit()
-
-# Create temp table, 
-# check if it exists, 
-# then drop it again.
-# run step by step to see output
-make_temp_table(cur, conn)
-check_db_content(cur)
-drop_temp_table(cur, conn)
-check_db_content(cur)
-
-# Create temp table
-make_temp_table(cur, conn)
-check_db_content(cur)
-
-# Check new test_table
-cur.execute('''
-			SELECT column_name, data_type 
-			FROM information_schema.columns 
-			WHERE table_name = 'test_table';
-		    ''')
-cur.fetchall()
-
-cur.execute('''
-			SELECT * FROM test_table
-			LIMIT 1
-		    ''')
-cur.fetchall()
-
-
-# update test_table (fill with data from recipes table)
-cur.execute('''
-			INSERT INTO test_table ("recipesID", "title")
-			SELECT "recipesID", "title"
-			FROM recipes;
-			''')
-conn.commit()
-
-# show inserted data and overall size
-cur.execute('''
-			SELECT * FROM test_table
-			LIMIT 10
-		    ''')
-cur.fetchall()
-
-cur.execute(''' SELECT count(*) FROM test_table ''')
-cur.fetchall()
-
-cur.execute(''' SELECT count(*) FROM recipes ''')
-cur.fetchall()
-
-# Add tsvector column of "title" column
-cur.execute('''
-			UPDATE test_table
-			SET title_tsv = to_tsvector(title);
-			''')
-conn.commit()
-
-# show data
-cur.execute('''
-			SELECT * FROM test_table
-			LIMIT 10
-		    ''')
-cur.fetchall()
-
-# drop test table
-drop_temp_table(cur, conn)
-check_db_content(cur)
-
-
-# Add tsvector column of "title" column in recipes table
-# Show current column names
-cur.execute('''
-			SELECT column_name, data_type 
-			FROM information_schema.columns 
-			WHERE table_name = 'recipes';
-		    ''')
-cur.fetchall()
-
-# Add new column: title_tsv
-cur.execute('''
-			ALTER TABLE recipes
-			ADD COLUMN title_tsv TSVECTOR;
-		    ''')
-conn.commit()
-
-# Check if new column is there
-cur.execute('''
-			SELECT column_name, data_type 
-			FROM information_schema.columns 
-			WHERE table_name = 'recipes';
-		    ''')
-cur.fetchall()
-			
-# Populate title_tsv
-cur.execute('''
-			UPDATE recipes
-			SET title_tsv = to_tsvector(title);
-			''')
-conn.commit()
-
-# show data
-cur.execute('''
-			SELECT * FROM recipes
-			LIMIT 10
-		    ''')
-cur.fetchall()
-
-
-# check output of websearch_to_tsquery()
-cur.execute(sql.SQL(
-            """
-            SELECT websearch_to_tsquery('simple', '"vegan cookies"');
-            """))
-cur.fetchall()
-
-# Test free search with tsquery
-search_term = 'vegan cookies'
-N = 10
-cur.execute(sql.SQL(
-            """
-            SELECT "recipesID", "title", "title_tsv",
-                ts_rank_cd(title_tsv, query) AS rank
-            FROM public.recipes, websearch_to_tsquery('simple', %s) query
-            WHERE query @@ title_tsv
-            ORDER BY rank ASC
-            LIMIT %s
-            """).format(), [search_term, N])
-cur.fetchall()
-
-
-# ===========================================================================
-# Add tsvector columns to recipes table for 
-# 1. categories
-# 2. ingredients
-
-# Show columns of recipes table
-check_table_columns(cur, 'recipes')
-
-# Create temporary DB for testing
-def make_temp_table2(cur, conn):
-	cur.execute(
-		'''
-		CREATE TABLE public.test_table
-		(
-			"recipesID" bigint NOT NULL,
-			categories VARCHAR,
-			categories_tsv TSVECTOR,
-			ingredients VARCHAR,
-			ingredients_tsv TSVECTOR,
-			PRIMARY KEY ("recipesID")
-		)
-		
-		WITH (
-		    OIDS = FALSE
-		)
-		TABLESPACE pg_default;
-		
-		ALTER TABLE public.test_table
-		OWNER to postgres;
-		''')
-	conn.commit()
-	
-	
-# Create temp table
-make_temp_table2(cur, conn)
-check_db_content(cur)
-
-# Check new test_table
-cur.execute('''
-			SELECT column_name, data_type 
-			FROM information_schema.columns 
-			WHERE table_name = 'test_table';
-		    ''')
-cur.fetchall()
-
-cur.execute('''
-			SELECT * FROM test_table
-			LIMIT 1
-		    ''')
-cur.fetchall()
-
-
-# update test_table (fill with data from recipes table)
-cur.execute('''
-			INSERT INTO test_table ("recipesID", "categories", "ingredients")
-			SELECT "recipesID", "categories", "ingredients"
-			FROM recipes;
-			''')
-conn.commit()
-
-# show inserted data and overall size
-cur.execute('''
-			SELECT * FROM test_table
-			LIMIT 10
-		    ''')
-cur.fetchall()
-
-cur.execute(''' SELECT count(*) FROM test_table ''')
-cur.fetchall()
-
-cur.execute(''' SELECT count(*) FROM recipes ''')
-cur.fetchall()
-
-# Add tsvector column of "categories" and "ingredients" columns
-cur.execute('''
-			UPDATE test_table
-			SET categories_tsv = to_tsvector(categories);
-			
-			UPDATE test_table
-			SET ingredients_tsv = to_tsvector(ingredients);
-			''')
-conn.commit()
-
-# show inserted data
-cur.execute('''
-			SELECT * FROM test_table
-			LIMIT 10
-		    ''')
-cur.fetchall()
-
-
-# Not sure how much use the ingredients column is actually going to be...
-
-
-# drop test table
-drop_temp_table(cur, conn)
-check_db_content(cur)
-
-
-# ===========================================================================
-# Add tsvector column of "categories" to recipes
-# Show current column names
-check_table_columns(cur, 'recipes')
-
-# Add new column: categories_tsv
-cur.execute('''
-			ALTER TABLE recipes
-			ADD COLUMN categories_tsv TSVECTOR;
-		    ''')
-conn.commit()
-
-# Check if new column is there
-check_table_columns(cur, 'recipes')
-
-# Populate categories_tsv
-cur.execute('''
-			UPDATE recipes
-			SET categories_tsv = to_tsvector(categories);
-			''')
-conn.commit()
-
-# show data
-cur.execute('''
-			SELECT * FROM recipes
-			LIMIT 10
-		    ''')
-cur.fetchall()
-
-
-# check output of websearch_to_tsquery()
-cur.execute(sql.SQL(
-            """
-            SELECT websearch_to_tsquery('simple', '"vegan cookies"');
-            """))
-cur.fetchall()
-
-# Test free search with tsquery
-search_term = 'vegan cookies'
-N = 10
-cur.execute(sql.SQL(
-            """
-            SELECT "recipesID", "title", "categories_tsv",
-                ts_rank_cd(categories_tsv, query) AS rank
-            FROM public.recipes, websearch_to_tsquery('simple', %s) query
-            WHERE query @@ categories_tsv
-            ORDER BY rank ASC
-            LIMIT %s
-            """).format(), [search_term, N])
-cur.fetchall()
-
-
-# ===========================================================================
-# Add ts_vector column for a combination of both title and categories, with
-# an added weight of which column is more important
-# See https://www.postgresql.org/docs/current/textsearch-controls.html
-
-# Create temporary DB for testing
-def make_temp_table3(cur, conn):
-	cur.execute(
-		'''
-		CREATE TABLE public.test_table
-		(
-			"recipesID" bigint NOT NULL,
-			categories VARCHAR,
-			title VARCHAR,
-			combined_tsv TSVECTOR,
-			PRIMARY KEY ("recipesID")
-		)
-		
-		WITH (
-		    OIDS = FALSE
-		)
-		TABLESPACE pg_default;
-		
-		ALTER TABLE public.test_table
-		OWNER to postgres;
-		''')
-	conn.commit()
-	
-	
-# Create temp table
-make_temp_table3(cur, conn)
-check_db_content(cur)
-
-# update test_table (fill with data from recipes table)
-cur.execute('''
-			INSERT INTO test_table ("recipesID", "categories", "title", "combined_tsv")
-			SELECT "recipesID", "categories", "title", 
-				setweight(to_tsvector(coalesce(title,'')), 'A') ||
-				setweight(to_tsvector(coalesce(categories,'')), 'B') as tsv
-			FROM recipes;
-			''')
-conn.commit()
-
-# show inserted data and overall size
-cur.execute('''
-			SELECT * FROM test_table
-			LIMIT 10
-		    ''')
-cur.fetchall()
-
-# drop test table
-drop_temp_table(cur, conn)
-check_db_content(cur)
-
-
-# ===========================================================================
-# Add combined_tsv column to recipes table
-
-cur.execute('''
-			INSERT INTO test_table ("recipesID", "categories", "title", "combined_tsv")
-			SELECT "recipesID", "categories", "title", 
-				setweight(to_tsvector(coalesce(title,'')), 'A') ||
-				setweight(to_tsvector(coalesce(categories,'')), 'B') as tsv
-			FROM recipes;
-			''')
-conn.commit()
-
-check_table_columns(cur, 'recipes')
-
-# Add new column: categories_tsv
-cur.execute('''
-			ALTER TABLE recipes
-			ADD COLUMN combined_tsv TSVECTOR;
-		    ''')
-conn.commit()
-
-# Check if new column is there
-check_table_columns(cur, 'recipes')
-
-# Populate categories_tsv
-cur.execute('''
-			UPDATE recipes
-			SET combined_tsv = 
-				setweight(to_tsvector(coalesce(title,'')), 'A') ||
-				setweight(to_tsvector(coalesce(categories,'')), 'B');
-			''')
-conn.commit()
-
-# show data
-cur.execute('''
-			SELECT * FROM recipes
-			LIMIT 10
-		    ''')
-cur.fetchall()
-
-
-# check output of websearch_to_tsquery()
-cur.execute(sql.SQL(
-            """
-            SELECT websearch_to_tsquery('simple', '"vegan cookies"');
-            """))
-cur.fetchall()
-
-# Test free search with tsquery
-search_term = 'vegan cookies'
-search_column = 'combined_tsv'
-N = 10
-cur.execute(sql.SQL(
-            """
-            SELECT "recipesID", "title", "url", "perc_rating",
-                "perc_sustainability", "review_count", "image_url",
-                "emissions", "prop_ingredients",
-                ts_rank_cd({}, query) AS rank
-            FROM public.recipes, websearch_to_tsquery('simple', %s) query
-            WHERE query @@ {}
-            ORDER BY rank DESC
-            LIMIT %s
-            """).format(sql.Identifier(search_column),
-                        sql.Identifier(search_column)),
-                        [search_term, N])
-cur.fetchall()
-
-
-# ===========================================================================
-# Check vulnerability to SQL injection attacks
-
-# None of the following should return true (empty returns are ok!)
-
-
-# For illustrative purposes, make a statement where sql injection works
-search_term = "''; select true; --"
-cur.execute("""
-            SELECT * FROM recipes
-			WHERE title = %s
-            """ % search_term)
-cur.fetchall()
-
-
-# This actually also works with with sql.SQL
-search_term = "''; select true; --"
-cur.execute(sql.SQL(
-			"""
-            SELECT * FROM recipes
-			WHERE title = %s
-            """).format(), [search_term])
-cur.fetchall()
-
-
-# Using .format() in sql.SQL is needed
-search_term = "'; select true; --"
-cur.execute(sql.SQL(
-			"""
-            SELECT * FROM recipes
-			WHERE title = %s
-            """).format(), [search_term])
-cur.fetchall()
-
-
-# Test free search with tsquery
-search_term = "'; select true; --"
-cur.execute(sql.SQL(
-            """
-            SELECT  websearch_to_tsquery('simple', %s)
-            """).format(),[search_term])
-cur.fetchall()
-
-
-# Test free search with tsquery
-search_term = "'; select true; --"
-search_column = 'combined_tsv'
-N = 10
-cur.execute(sql.SQL(
-            """
-            SELECT "recipesID", "title", "url", "perc_rating",
-                "perc_sustainability", "review_count", "image_url",
-                "emissions", "prop_ingredients",
-                ts_rank_cd({}, query) AS rank
-            FROM public.recipes, websearch_to_tsquery('simple', %s) query
-            WHERE query @@ {}
-            ORDER BY rank DESC
-            LIMIT %s
-            """).format(sql.Identifier(search_column),
-                        sql.Identifier(search_column)),
-                        [search_term, N])
-cur.fetchall()
-
-
-# inject search_column
-search_term = "vegan cookies"
-search_column = "'; select true; --"
-N = 10
-cur.execute(sql.SQL(
-            """
-            SELECT "recipesID", "title", "url", "perc_rating",
-                "perc_sustainability", "review_count", "image_url",
-                "emissions", "prop_ingredients",
-                ts_rank_cd({}, query) AS rank
-            FROM public.recipes, websearch_to_tsquery('simple', %s) query
-            WHERE query @@ {}
-            ORDER BY rank DESC
-            LIMIT %s
-            """).format(sql.Identifier(search_column),
-                        sql.Identifier(search_column)),
-                        [search_term, N])
-cur.fetchall()
-# raises UndefinedColumn error
-
-
-# fuzzy search (no match found)
-# inject N
-N = "'; select true; --"
-cur.execute(sql.SQL(
-                        """
-                        SELECT "recipesID", "title", "url", "perc_rating",
-                            "perc_sustainability", "review_count", "image_url",
-                            "emissions", "prop_ingredients"
-                        FROM public.recipes
-                        LIMIT %s
-                        """).format(), [N])
-cur.fetchall()
-# raises InvalidTextRepresentation error
-
-
-# the sql.SQL approach takes pretty good care of preventing sql injections!
-# but to be sure it works, always use format! 
-
-# Rewrite fuzzy search part1 using only .format()
-search_term = "chicken"
-search_column = 'combined_tsv'
-N = 10
-cur.execute(sql.SQL(
-            """
-            SELECT "recipesID", "title", "url", "perc_rating",
-                "perc_sustainability", "review_count", "image_url",
-                "emissions", "prop_ingredients",
-                ts_rank_cd({search_column}, query) AS rank
-            FROM public.recipes,
-                websearch_to_tsquery('simple', {search_term}) query
-            WHERE query @@ {search_column}
-            ORDER BY rank DESC
-            LIMIT {N}
-            """).format(
-                search_column=sql.Identifier(search_column),
-                search_term=sql.Literal(search_term),
-                N=sql.Literal(N)
-                )
-            )
-cur.fetchall()
-
-
-
-# Connect to DB
-conn, cur = connect_to_DB()
-check_db_content(cur)
-
-
-with pytest.raises(ps.errors.UndefinedColumn):
-	search_term = "vegan cookies"
-	search_column = "'; select true; --"
-	N = 10
-	cur.execute(sql.SQL(
-	            """
-	            SELECT "recipesID", "title", "url", "perc_rating",
-	                "perc_sustainability", "review_count", "image_url",
-	                "emissions", "prop_ingredients",
-	                ts_rank_cd({}, query) AS rank
-	            FROM public.recipes, websearch_to_tsquery('simple', %s) query
-	            WHERE query @@ {}
-	            ORDER BY rank DESC
-	            LIMIT %s
-	            """).format(sql.Identifier(search_column),
-	                        sql.Identifier(search_column)),
-	                        [search_term, N])
-	cur.fetchall()
-
-
-# ===========================================================================
-# Replace all empty image_url entries with default image url:
-# ../static/image_placeholder_logo.png
-
-# Connect to DB
-conn, cur = connect_to_DB()
-check_db_content(cur)
-
-# Show columns of recipes table
-check_table_columns(cur, 'recipes')
-
-cur.execute(sql.SQL(
-            """
-            SELECT count(*) FROM recipes
-			WHERE image_url is NULL
-            """).format()
-            )
-cur.fetchall()
-
-# Create temporary table
-def make_temp_table4(cur, conn):
-	cur.execute(
-		'''
-		CREATE TABLE public.test_table
-		(
-			"recipesID" bigint NOT NULL,
-			image_url VARCHAR,
-			PRIMARY KEY ("recipesID")
-		)
-		
-		WITH (
-		    OIDS = FALSE
-		)
-		TABLESPACE pg_default;
-		
-		ALTER TABLE public.test_table
-		OWNER to postgres;
-		''')
-	conn.commit()
-
-# Drop temporary table
-def drop_temp_table(cur, conn):
-	cur.execute(''' DROP TABLE IF EXISTS public.test_table; ''')
-	conn.commit()
-
-# Create temp table, 
-# check if it exists, 
-# then drop it again.
-# run step by step to see output
-make_temp_table4(cur, conn)
-check_db_content(cur)
-drop_temp_table(cur, conn)
-check_db_content(cur)
-
-# Create temp table
-make_temp_table4(cur, conn)
-check_db_content(cur)
-
-
-# insert default image url in temp table
-cur.execute('''
-			INSERT INTO test_table ("recipesID", "image_url")
-			SELECT "recipesID", "image_url"
-			FROM recipes;
-			''')
-conn.commit()
-
-# show content
-cur.execute('''
-			SELECT * FROM test_table
-			LIMIT 100;
-			''')
-cur.fetchall()
-
-# replace all empty image_url entries with default image url
-cur.execute('''
-			UPDATE test_table
-			SET image_url = '../static/image_placeholder_logo.png'
-			WHERE image_url IS NULL;
-			''')
-conn.commit()
-
-# show content
-cur.execute('''
-			SELECT * FROM test_table
-			LIMIT 100;
-			''')
-cur.fetchall()
-
-# number of Null elements
-cur.execute('''
-			SELECT count(*) FROM test_table
-			WHERE image_url IS NULL;
-			''')
-cur.fetchall()
-
-
-# Ok great. Now drop test_table and do this for the recipes table
-drop_temp_table(cur, conn)
-check_db_content(cur)
-
-
-# replace all empty image_url entries with default image url in "recipes"
-cur.execute('''
-			UPDATE recipes
-			SET image_url = '../static/image_placeholder_logo.png'
-			WHERE image_url IS NULL;
-			''')
-conn.commit()
-
-# show content
-cur.execute('''
-			SELECT image_url FROM recipes
-			LIMIT 100;
-			''')
-cur.fetchall()
-
-# number of Null elements
-cur.execute('''
-			SELECT count(*) FROM recipes
-			WHERE image_url IS NULL;
-			''')
-cur.fetchall()	
-
-# number of placeholders
-cur.execute('''
-			SELECT count(*) FROM recipes
-			WHERE image_url = '../static/image_placeholder_logo.png';
-			''')
-cur.fetchall()	
-
-# close DB connection
-cur.close()
-
+        """,
+        bindparams=[
+            bindparam('search_term', value=search_term, type_=String),
+            bindparam('N', value=N, type_=Integer)
+        ]
+    )
+    results = session.execute(query).fetchall()
+    return results
+
+
+def free_search(session, search_term, N=160):
+    """
+    DESCRIPTION:
+        Parent function for searching recipes freely. At the moment
+        it only calls phrase_search. But having this function makes
+        it easier to extend in the future.
+    INPUT:
+        session: (Flask-)SQLAlchemy session object
+        search_term (str)
+        N (int): Max number of results to return
+    OUTPUT:
+        results (list of RowProxy objects): DB query result
+    NOTES:
+        See https://www.postgresql.org/docs/12/textsearch-controls.html
+        for details on postgres' search functionalities.
+    """
+    results = phrase_search(session, search_term, N=N)
+    if not results:
+        results = fuzzy_search(session, search_term, N=N-len(results))
+    return results
+
+
+def query_content_similarity_ids(session, search_term):
+    """
+    DESCRIPTION:
+        Searches in connected postgres DB for a search_term in
+        'url' column and returns recipeIDs of similar recipes based
+        on content similarity.
+    INPUT:
+        session: (Flask-)SQLAlchemy session object
+        search_term (str): Search term
+    OUTPUT:
+        CS_ids (tuple): Content based similarity ID vector ordered by
+            similarity in descending order
+    """
+    query = text(
+        """
+        SELECT * FROM public.content_similarity200_ids
+        WHERE "recipeID" = (
+            SELECT "recipesID" FROM public.recipes
+            WHERE "url" = :search_term)
+        """,
+        bindparams=[
+            bindparam('search_term', value=search_term, type_=String)
+        ]
+    )
+    CS_ids = session.execute(query).fetchall()[0][1::]
+    CS_ids = tuple([abs(int(CSid)) for CSid in CS_ids])
+    return CS_ids
+
+
+def query_content_similarity(session, search_term):
+    """
+    DESCRIPTION:
+        Searches in connected postgres DB for a search_term in
+        'url' and returns content based similarity.
+    INPUT:
+        session: (Flask-)SQLAlchemy session object
+        search_term (str): Search term
+    OUTPUT:
+        CS (tuple): Content based similarity vector ordered by
+            similarity in descending order
+    """
+    query = text(
+        """
+        SELECT * FROM public.content_similarity200
+        WHERE "recipeID" = (
+            SELECT "recipesID" FROM public.recipes
+            WHERE url = :search_term)
+        """,
+        bindparams=[
+            bindparam('search_term', value=search_term, type_=String)
+        ]
+    )
+    CS = session.execute(query).fetchall()[0][1::]
+    CS = tuple([abs(float(s)) for s in CS])
+    return CS
+
+
+def query_similar_recipes(session, CS_ids):
+    """
+    DESCRIPTION:
+        fetch recipe information of similar recipes based on the recipe IDs
+        given by CS_ids
+    INPUT:
+        session: (Flask-)SQLAlchemy session object
+        CS_ids (tuple): Tuple of recipe IDs
+    OUTPUT:
+        recipes_sql (list of RowProxy objects): DB query result
+    """
+    query = text(
+        """
+        SELECT "recipesID", "title", "ingredients",
+            "rating", "calories", "sodium", "fat",
+            "protein", "emissions", "prop_ingredients",
+            "emissions_log10", "url", "servings", "recipe_rawid",
+            "image_url", "perc_rating", "perc_sustainability",
+            "review_count"
+        FROM public.recipes
+        WHERE "recipesID" IN :CS_ids
+        """,
+        bindparams=[
+            bindparam('CS_ids', value=CS_ids, type_=Numeric)
+        ]
+    )
+    recipes_sql = session.execute(query).fetchall()
+    return recipes_sql
+
+
+def exact_recipe_match(session, search_term):
+    '''
+    DESCRIPTION:
+        Return True if search_term is in recipes table of
+        cur database, False otherwise.
+    '''
+    query = text(
+        """
+        SELECT * FROM public.recipes
+        WHERE "url" = :search_term
+        """,
+        bindparams=[
+            bindparam('search_term', value=search_term, type_=String)
+        ]
+    )
+    if session.execute(query).fetchall():
+        return True
+    else:
+        return False
+
+
+def content_based_search(session, search_term):
+    '''
+    DESCRIPTION:
+        return the 200 most similar recipes to the url defined
+        in <search term> based on cosine similarity in the "categories"
+        space of the epicurious dataset.
+    INPUT:
+        cur: psycopg2 cursor object
+        search_term (str): url identifier for recipe (in recipes['url'])
+    OUTPUT:
+        results (dataframe): Recipe dataframe similar to recipes, but
+            containing only the Nsim most similar recipes to the input.
+            Also contains additional column "similarity".
+    '''
+    # Select recipe IDs of 200 most similar recipes to reference
+    CS_ids = query_content_similarity_ids(session, search_term)
+
+    # Also select the actual similarity scores
+    CS = query_content_similarity(session, search_term)
+
+    # Finally, select similar recipes themselves
+    # Get only those columns I actually use to speed things up
+    # Note that column names are actually different in sql and pandas
+    # So if you want to adjust this, adjust both!
+    # TODO: Make column names similar in pandas and sql!
+    col_sel = [
+            'recipesID', 'title', 'ingredients', 'rating', 'calories',
+            'sodium', 'fat', 'protein', 'ghg', 'prop_ing', 'ghg_log10',
+            'url', 'servings', 'index', 'image_url', 'perc_rating',
+            'perc_sustainability', 'review_count'
+                ]
+    recipes_sql = query_similar_recipes(session, CS_ids)
+
+    # Obtain a dataframe for further processing
+    results = pd.DataFrame(recipes_sql, columns=col_sel)
+
+    # Add similarity scores to correct recipes (using recipesID again)
+    temp = pd.DataFrame({'CS_ids': CS_ids, 'similarity': CS})
+    results = results.merge(temp, left_on='recipesID',
+                            right_on='CS_ids', how='left')
+
+    # Assign data types (sql output might be decimal, should
+    # be float!)
+    numerics = ['recipesID', 'rating', 'calories', 'sodium',
+                'fat', 'protein', 'ghg', 'prop_ing', 'ghg_log10',
+                'index', 'perc_rating', 'perc_sustainability',
+                'similarity', 'review_count']
+    strings = ['title', 'ingredients', 'url', 'servings', 'image_url']
+    for num in numerics:
+        results[num] = pd.to_numeric(results[num])
+    for s in strings:
+        results[s] = results[s].astype('str')
+
+    # Order results by similarity
+    results = results.sort_values(by='similarity', ascending=False)
+
+    return results
+
+def search_recipes(session, search_term, N=160):
+    """
+    DESCRIPTION:
+        Does a free search for recipes based on user's search term. If an
+        exact match exists, does a content based search and returns the
+        resulting DataFrame.
+    INPUT:
+        session: (Flask-)SQLAlchemy session object
+        search_term (str): Search term input by user into search bar
+        N (int): Max number of results to return
+    OUTPUT:
+        df (pd.DataFrame): DataFrame with recipes as rows
+    """
+    outp = free_search(session, search_term, N)
+
+    if outp[0][2] == search_term:
+        return content_based_search(session, search_term)
+
+    col_names = ["recipesID", "title", "url", "perc_rating",
+                 "perc_sustainability", "review_count", "image_url",
+                 "ghg", "prop_ingredients", "rank"]
+
+    results = pd.DataFrame(outp, columns=col_names)
+
+    # Assign data types (sql output might be decimal, should
+    # be float!)
+    numerics = ['recipesID', 'perc_rating', 'ghg', 'prop_ingredients',
+                'perc_rating', 'perc_sustainability', 'review_count']
+    strings = ['title', 'url', 'image_url']
+    for num in numerics:
+        results[num] = pd.to_numeric(results[num])
+    for s in strings:
+        results[s] = results[s].astype('str')
+
+    # Order results by rank / edit_dist
+    results = results.sort_values(by='rank', ascending=False)
+    return results
 
 # eof
-
-
-
-
-
-
-
-
 
