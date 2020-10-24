@@ -641,8 +641,10 @@ cur.execute(
 	    "username" VARCHAR(25) NOT NULL UNIQUE,
 		"password" VARCHAR(200) NOT NULL,
 		"email" VARCHAR(200) UNIQUE,
-		"created" TIMESTAMP,
+		"created_on" TIMESTAMP,
 		"avatar" VARCHAR(100),
+		"confirmed" BOOLEAN,
+		"confirmed_on" TIMESTAMP,
 	    PRIMARY KEY ("userID")
 	)
 	WITH (
