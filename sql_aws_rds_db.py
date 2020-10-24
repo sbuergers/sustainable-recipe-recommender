@@ -638,10 +638,11 @@ cur.execute(
 	CREATE TABLE public.users
 	(
 	    "userID" SERIAL,
-	    "username" VARCHAR(20) NOT NULL UNIQUE,
+	    "username" VARCHAR(25) NOT NULL UNIQUE,
 		"password" VARCHAR(200) NOT NULL,
-		"email" VARCHAR(50) UNIQUE,
+		"email" VARCHAR(200) UNIQUE,
 		"created" TIMESTAMP,
+		"avatar" VARCHAR(100),
 	    PRIMARY KEY ("userID")
 	)
 	WITH (
