@@ -46,44 +46,6 @@ db = SQLAlchemy(app)
 db.Model.metadata.reflect(db.engine)
 
 
-""" SQLAlchemy table abstractions """
-class User(db.Model):
-    __table__ = db.Model.metadata.tables['users']
-    likes = db.relationship('Like', backref='user', lazy='dynamic')
-
-    def __repr__(self):
-        return '<User {}>'.format(self.username)
-	
-	
-class Recipe(db.Model):
-    __table__ = db.Model.metadata.tables['recipes']
-
-    def __repr__(self):
-        return '<Recipe {}>'.format(self.title)
-
-
-class Like(db.Model):
-    __table__ = db.Model.metadata.tables['likes']
-
-    def __repr__(self):
-        return '<Like {}>'.format(self.likeID)
-
-
-# Get an existing user object
-username = 'test_user123'
-user = User.query.filter_by(username=username).first_or_404()
-
-# Create a like for this user
-liked_recipe = db.session.query(Recipe).filter_by(recipesID=1111).first()
-like = Like(userID=user.userID, username=username, rating=5, recipesID=1111)
-db.session.add(like)
-db.session.commit()
-
-# Was the relationship to the Like table abstraction establilshed?
-u = User.query.filter_by(username=username).first_or_404()
-u.likes[0]
-
-
 def fuzzy_search(session, search_term, search_column="url", N=160):
     """
     DESCRIPTION:
@@ -402,6 +364,53 @@ def search_recipes(session, search_term, N=160):
     # Order results by rank / edit_dist
     results = results.sort_values(by='rank', ascending=False)
     return results
+
+def query_cookbook(session, userID):
+	"""
+    DESCRIPTION:
+        Creates a pandas dataframe containing all recipes the given
+		user has liked / added to the cookbook.
+	INPUT:
+		userID (Integer)
+	OUTPUT:
+		cookbook (pd.DataFrame)
+	"""
+	query = text(
+		"""
+		SELECT u."userID", u.username,
+			l.created, l.rating,
+			r.title, r.url, r.perc_rating, r.perc_sustainability,
+			r.review_count, r.image_url, r.emissions, r.prop_ingredients
+			FROM users u
+			JOIN likes l ON (u.username = l.username)
+			JOIN recipes r ON (l."recipesID" = r."recipesID")
+		WHERE u."userID" = :userID
+		ORDER BY l.rating
+		""",
+		bindparams=[
+			bindparam('userID', value=userID, type_=Integer)
+		]
+	)
+	recipes = session.execute(query).fetchall()
+	
+	# Convert to DataFrame
+	col_sel = ["userID", "username", "created", "user_rating",
+			   "recipe_title", "url", "perc_rating", "perc_sustainability",
+			   "review_count", "image_url", "emissions", "prop_ingredients"]
+	results = pd.DataFrame(recipes, columns=col_sel)
+	
+	# Assign data types
+	numerics = ['userID', 'user_rating', 'perc_rating', 'perc_sustainability',
+				'review_count', 'emissions', 'prop_ingredients']
+	strings = ['username', 'recipe_title', 'url', 'image_url']
+	datetimes = ['created']
+	for num in numerics:
+		results[num] = pd.to_numeric(results[num])
+	for s in strings:
+		results[s] = results[s].astype('str')
+	for dt in datetimes:
+		results[dt] = pd.to_datetime(results[dt])
+	return results
 
 
 # eof
