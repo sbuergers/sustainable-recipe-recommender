@@ -26,6 +26,7 @@ from sqlalchemy import text, bindparam, String, Integer, Numeric
 
 # data handling
 import pandas as pd
+import datetime
 
 # code testing
 import pytest
@@ -42,8 +43,45 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
 		"pool_pre_ping": True
 	}
 db = SQLAlchemy(app)	
+db.Model.metadata.reflect(db.engine)
 
 
+""" SQLAlchemy table abstractions """
+class User(db.Model):
+    __table__ = db.Model.metadata.tables['users']
+    likes = db.relationship('Like', backref='user', lazy='dynamic')
+
+    def __repr__(self):
+        return '<User {}>'.format(self.username)
+	
+	
+class Recipe(db.Model):
+    __table__ = db.Model.metadata.tables['recipes']
+
+    def __repr__(self):
+        return '<Recipe {}>'.format(self.title)
+
+
+class Like(db.Model):
+    __table__ = db.Model.metadata.tables['likes']
+
+    def __repr__(self):
+        return '<Like {}>'.format(self.likeID)
+
+
+# Get an existing user object
+username = 'test_user123'
+user = User.query.filter_by(username=username).first_or_404()
+
+# Create a like for this user
+liked_recipe = db.session.query(Recipe).filter_by(recipesID=1111).first()
+like = Like(userID=user.userID, username=username, rating=5, recipesID=1111)
+db.session.add(like)
+db.session.commit()
+
+# Was the relationship to the Like table abstraction establilshed?
+u = User.query.filter_by(username=username).first_or_404()
+u.likes[0]
 
 
 def fuzzy_search(session, search_term, search_column="url", N=160):

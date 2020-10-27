@@ -694,9 +694,14 @@ cur.execute(
         "likeID" BIGSERIAL,
 	    "username" VARCHAR NOT NULL,
 		"rating" NUMERIC,
+		"userID" BIGINT NOT NULL,
 		"recipesID" BIGINT NOT NULL,
 		"created" TIMESTAMP,
 		PRIMARY KEY ("likeID"),
+		CONSTRAINT fk_users
+			FOREIGN KEY("userID")
+				REFERENCES users("userID")
+				ON DELETE SET NULL,
 		CONSTRAINT fk_recipes
 			FOREIGN KEY("recipesID")
 				REFERENCES recipes("recipesID")
