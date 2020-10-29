@@ -46,6 +46,43 @@ db = SQLAlchemy(app)
 db.Model.metadata.reflect(db.engine)
 
 
+class User(db.Model):
+    __table__ = db.Model.metadata.tables['users']
+    likes = db.relationship('Like', backref='user', lazy='dynamic')
+
+    def __repr__(self):
+        return '<User {}>'.format(self.username)
+
+
+class Recipe(db.Model):
+    __table__ = db.Model.metadata.tables['recipes']
+
+    def __repr__(self):
+        return '<Recipe {}>'.format(self.title)
+
+
+class Like(db.Model):
+    __table__ = db.Model.metadata.tables['likes']
+
+    def __repr__(self):
+        return '<Like {}>'.format(self.likeID)
+
+
+class ContentSimilarity(db.Model):
+    __table__ = db.Model.metadata.tables['content_similarity200']
+
+    def __repr__(self):
+        return '<ContentSimilarity {}>'.format(self.recipeID)
+
+
+class ContentSimilarityID(db.Model):
+    __table__ = db.Model.metadata.tables['content_similarity200_ids']
+
+    def __repr__(self):
+        return '<ContentSimilarityID {}>'.format(self.recipeID)
+
+
+
 def fuzzy_search(session, search_term, search_column="url", N=160):
     """
     DESCRIPTION:
@@ -411,6 +448,38 @@ def query_cookbook(session, userID):
 	for dt in datetimes:
 		results[dt] = pd.to_datetime(results[dt])
 	return results
+
+
+def add_to_cookbook(session, userID, url):
+	"""
+	DESCRIPTION:
+		Creates a new entry in the likes table for a given user
+		and recipe.
+	INPUT:
+		userID (Integer): userID from users table
+		url (String): Url string from recipes table
+	OUTPUT:
+		None
+	"""
+	# Get username and recipesID
+	user = User.query.filter_by(userID=userID).first_or_404()
+	recipe = Recipe.query.filter_by(url=url).first_or_404()
+	
+	# Create new like entry
+	like = Like(username=user.username,
+			 rating=5,
+			 userID=userID,
+			 recipesID=recipe.recipesID,
+			 created=datetime.datetime.utcnow())
+	session.add(like)
+	session.commit()
+	
+	
+url = 'pineapple-shrimp-noodle-bowls'
+add_to_cookbook(db.session, 2, url)
+
+recipe = Recipe.query.filter_by(url=url).first_or_404()
+like = Like.query.filter_by(userID=2, recipesID=recipe.recipesID).first_or_404()
 
 
 # eof
