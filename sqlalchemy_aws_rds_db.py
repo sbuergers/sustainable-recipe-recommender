@@ -450,6 +450,29 @@ def query_cookbook(session, userID):
 	return results
 
 
+def is_in_cookbook(session, userID, url):
+	"""
+	DESCRIPTION:
+		Check if a recipe (given by url) is already in a user's
+		cookbook (given by userID)
+	INPUT:
+		userID (Integer): userID from users table
+		url (String): Url string from recipes table
+	OUTPUT:
+		Boolean
+	"""	
+	# Get username and recipesID
+	user = User.query.filter_by(userID=userID).first()
+	recipe = Recipe.query.filter_by(url=url).first()
+	
+	# Query like entries
+	like = Like.query.filter_by(userID=userID,
+							 recipesID=recipe.recipesID).first()
+	if like:
+		return True
+	return False
+
+
 def add_to_cookbook(session, userID, url):
 	"""
 	DESCRIPTION:
@@ -473,13 +496,6 @@ def add_to_cookbook(session, userID, url):
 			 created=datetime.datetime.utcnow())
 	session.add(like)
 	session.commit()
-	
-	
-url = 'pineapple-shrimp-noodle-bowls'
-add_to_cookbook(db.session, 2, url)
-
-recipe = Recipe.query.filter_by(url=url).first_or_404()
-like = Like.query.filter_by(userID=2, recipesID=recipe.recipesID).first_or_404()
 
 
 # eof
