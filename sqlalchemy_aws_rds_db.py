@@ -520,33 +520,34 @@ def remove_from_cookbook(session, userID, url):
 	session.commit()
 	
 	
-	
-# Add and delete a recipe with SQLAlchemy
+def query_user_ratings(session, userID, urls):
+	"""
+	DESCRIPTION:
+        Query all rows in likes table with the given userID
+        for all elements in urls
+	INPUT:
+		userID (Integer): userID from users table
+		urls (List of strings): Url strings from recipes table
+	OUTPUT:
+		pandas.DataFrame with columns [likeID, userID, recipesID,
+			 username, bookmarked, rating, created], can be empty
+	"""
+	recipesIDs = session.query(Recipe.recipesID).\
+		filter(Recipe.url.in_(urls)).all()
+	likes_query = session.query(Like).\
+		filter(Like.userID==userID,
+		 Like.recipesID.in_(recipesIDs))
+	return pd.read_sql(likes_query.statement, session.bind)
+
+
 userID = 3
-url = 'pineapple-shrimp-noodle-bowls'
+urls = ['bla-blub', 'blabla-blubblub', 'pineapple-shrimp-noodle-bowls',
+		'cold-sesame-noodles-12715']
+query_user_ratings(db.session, userID, urls)
 
-user = User.query.filter_by(userID=userID).first()
-recipe = Recipe.query.filter_by(url=url).first()
+urls = ['bla-blub', 'blabla-blubblub']
+query_user_ratings(db.session, userID, urls)
 
-# Add recipe
-like = Like(username=user.username,
-			 rating=5,
-			 userID=userID,
-			 recipesID=recipe.recipesID,
-			 created=datetime.datetime.utcnow())
-db.session.add(like)
-db.session.commit()
-
-# Delete recipe
-like = Like.query.filter_by(userID=userID,
-							recipesID=recipe.recipesID).first()
-db.session.delete(like)
-db.session.commit()
-
-# Verify deletion
-like = Like.query.filter_by(userID=userID,
-							recipesID=recipe.recipesID).first()
-assert not like
 
 
 
