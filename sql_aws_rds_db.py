@@ -692,10 +692,11 @@ cur.execute(
 	CREATE TABLE public.likes
 	(
         "likeID" BIGSERIAL,
-	    "username" VARCHAR NOT NULL,
-		"rating" NUMERIC,
 		"userID" BIGINT NOT NULL,
 		"recipesID" BIGINT NOT NULL,
+	    "username" VARCHAR NOT NULL,
+		"bookmarked" BOOLEAN DEFAULT FALSE,
+		"rating" NUMERIC,
 		"created" TIMESTAMP,
 		PRIMARY KEY ("likeID"),
 		CONSTRAINT fk_users
