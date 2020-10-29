@@ -482,11 +482,11 @@ def add_to_cookbook(session, userID, url):
 		userID (Integer): userID from users table
 		url (String): Url string from recipes table
 	OUTPUT:
-		None
+		String: Feedback message
 	"""
 	# Get username and recipesID
-	user = User.query.filter_by(userID=userID).first_or_404()
-	recipe = Recipe.query.filter_by(url=url).first_or_404()
+	user = User.query.filter_by(userID=userID).first()
+	recipe = Recipe.query.filter_by(url=url).first()
 	
 	# Create new like entry
 	like = Like(username=user.username,
@@ -496,6 +496,58 @@ def add_to_cookbook(session, userID, url):
 			 created=datetime.datetime.utcnow())
 	session.add(like)
 	session.commit()
+	
+
+def remove_from_cookbook(session, userID, url):
+	"""
+	DESCRIPTION:
+		Removes an existing entry in the likes table for a given
+		user and recipe.
+	INPUT:
+		userID (Integer): userID from users table
+		url (String): Url string from recipes table
+	OUTPUT:
+		String: Feedback message
+	"""
+	# Get like entry based on userID and recipe url
+	user = User.query.filter_by(userID=userID).first()
+	recipe = Recipe.query.filter_by(url=url).first()
+	like = Like.query.filter_by(userID=userID,
+							 recipesID=recipe.recipesID).first()
+	
+	# Create new like entry
+	session.delete(like)
+	session.commit()
+	
+	
+	
+# Add and delete a recipe with SQLAlchemy
+userID = 3
+url = 'pineapple-shrimp-noodle-bowls'
+
+user = User.query.filter_by(userID=userID).first()
+recipe = Recipe.query.filter_by(url=url).first()
+
+# Add recipe
+like = Like(username=user.username,
+			 rating=5,
+			 userID=userID,
+			 recipesID=recipe.recipesID,
+			 created=datetime.datetime.utcnow())
+db.session.add(like)
+db.session.commit()
+
+# Delete recipe
+like = Like.query.filter_by(userID=userID,
+							recipesID=recipe.recipesID).first()
+db.session.delete(like)
+db.session.commit()
+
+# Verify deletion
+like = Like.query.filter_by(userID=userID,
+							recipesID=recipe.recipesID).first()
+assert not like
+
 
 
 # eof
