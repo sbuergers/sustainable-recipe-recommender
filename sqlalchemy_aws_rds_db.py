@@ -46,14 +46,6 @@ db = SQLAlchemy(app)
 db.Model.metadata.reflect(db.engine)
 
 
-class User(db.Model):
-    __table__ = db.Model.metadata.tables['users']
-    likes = db.relationship('Like', backref='user', lazy='dynamic')
-
-    def __repr__(self):
-        return '<User {}>'.format(self.username)
-
-
 class Recipe(db.Model):
     __table__ = db.Model.metadata.tables['recipes']
 
@@ -80,7 +72,6 @@ class ContentSimilarityID(db.Model):
 
     def __repr__(self):
         return '<ContentSimilarityID {}>'.format(self.recipeID)
-
 
 
 def fuzzy_search(session, search_term, search_column="url", N=160):
@@ -490,7 +481,7 @@ def add_to_cookbook(session, userID, url):
 	
 	# Create new like entry
 	like = Like(username=user.username,
-			 rating=5,
+			 rating=None,
 			 userID=userID,
 			 recipesID=recipe.recipesID,
 			 created=datetime.datetime.utcnow())
@@ -549,6 +540,27 @@ urls = ['bla-blub', 'blabla-blubblub']
 query_user_ratings(db.session, userID, urls)
 
 
+def rate_recipe(session, userID, url, rating):
+	"""
+	DESCRIPTION:
+        Add user rating to bookmarked recipe in DB.
+	INPUT:
+		userID (Integer): userID from users table
+		url (String): Recipe url tag
+	OUTPUT:
+		None
+	"""
+	# Get recipeID
+	recipeID = session.query(Recipe.recipesID).\
+		filter(Recipe.url==url).first()
+		
+	# Find relevant likes row
+	like = Like.query.filter_by(userID=userID, recipesID=recipeID).first()
+	
+	# Add user rating and commit to DB
+	like.rating = rating
+	session.add(like)
+	session.commit()
 
 
 # eof
