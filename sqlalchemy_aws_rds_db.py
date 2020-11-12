@@ -584,16 +584,14 @@ userID = 3
 urls = ['bla-blub', 'blabla-blubblub', 'pineapple-shrimp-noodle-bowls',
 		'cold-sesame-noodles-12715']
 sql_query = db.session.query(
-	Recipe
+	Recipe, Like
 ).join(
 	Like, Like.recipesID == Recipe.recipesID, isouter=True
 ).filter(
 	Like.userID == userID,
 	Recipe.url.in_(urls)
-)
-	
+)	
 df = pd.read_sql(sql_query.statement, db.session.bind)
-
 df
 
 
