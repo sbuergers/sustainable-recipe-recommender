@@ -561,6 +561,42 @@ def rate_recipe(session, userID, url, rating):
 	like.rating = rating
 	session.add(like)
 	session.commit()
+	
+
+# TEST rate_recipe
+url = 'pineapple-shrimp-noodle-bowls'
+
+# Dislike a recipe
+rate_recipe(db.session, userID, url, rating=1)
+df = query_user_ratings(db.session, userID, [url])
+assert df['rating'][0] == 1
+
+# Like a recipe
+rate_recipe(db.session, userID, url, rating=5)
+df = query_user_ratings(db.session, userID, [url])
+assert df['rating'][0] == 5
+
+
+def query_bookmarks(self, userID, urls):
+        """
+        DESCRIPTION:
+            For all recipes (given in list urls) check if it has
+            been bookmarked by the user (return boolean list).
+        INPUT:
+            userID (Integer): userID from users table
+            urls (List of strings): Url strings from recipes table
+        OUTPUT:
+            List of booleans.
+        """
+        # Get recipesID
+        recipesIDs = self.session.query(Recipe.recipesID).filter(
+                        Recipe.url.in_(urls)).all()
+        likes_query = self.session.query(Like).filter(
+                        Like.userID == userID,
+                        Like.recipesID.in_(recipesIDs))
+        df = pd.read_sql(likes_query.statement, self.session.bind)
+        df.rename(columns={'rating': 'user_rating'}, inplace=True)
+        return df
 
 
 # eof
