@@ -577,26 +577,24 @@ df = query_user_ratings(db.session, userID, [url])
 assert df['rating'][0] == 5
 
 
-def query_bookmarks(self, userID, urls):
-        """
-        DESCRIPTION:
-            For all recipes (given in list urls) check if it has
-            been bookmarked by the user (return boolean list).
-        INPUT:
-            userID (Integer): userID from users table
-            urls (List of strings): Url strings from recipes table
-        OUTPUT:
-            List of booleans.
-        """
-        # Get recipesID
-        recipesIDs = self.session.query(Recipe.recipesID).filter(
-                        Recipe.url.in_(urls)).all()
-        likes_query = self.session.query(Like).filter(
-                        Like.userID == userID,
-                        Like.recipesID.in_(recipesIDs))
-        df = pd.read_sql(likes_query.statement, self.session.bind)
-        df.rename(columns={'rating': 'user_rating'}, inplace=True)
-        return df
+
+# Query recipes given by urls, and for this particular user return which
+# ones are bookmarked
+userID = 3
+urls = ['bla-blub', 'blabla-blubblub', 'pineapple-shrimp-noodle-bowls',
+		'cold-sesame-noodles-12715']
+sql_query = db.session.query(
+	Recipe
+).join(
+	Like, Like.recipesID == Recipe.recipesID, isouter=True
+).filter(
+	Like.userID == userID,
+	Recipe.url.in_(urls)
+)
+	
+df = pd.read_sql(sql_query.statement, db.session.bind)
+
+df
 
 
 # eof
