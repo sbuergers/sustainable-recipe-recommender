@@ -595,6 +595,36 @@ df = pd.read_sql(sql_query.statement, db.session.bind)
 df
 
 
+def query_bookmarks(session, userID, urls):
+    """
+    DESCRIPTION:
+        For all recipes (given in list urls) check if it has
+        been bookmarked by the user (return boolean list).
+    INPUT:
+        userID (Integer): userID from users table
+        urls (List of strings): Url strings from recipes table
+    OUTPUT:
+        Pandas DataFrame with columns 'recipesID' and 'bookmarked'
+    """
+    sql_query = session.query(
+        Recipe, Like
+    ).join(
+        Like, Like.recipesID == Recipe.recipesID, isouter=True
+    ).filter(
+        Like.userID == userID,
+        Recipe.url.in_(urls)
+    )
+    df = pd.read_sql(sql_query.statement, session.bind)
+	
+    # I got 2 recipeID columns, keep only one!
+    df = df.loc[:,~df.columns.duplicated()]
+    return df[['recipesID', 'bookmarked']]
+
+
+bookmarks = query_bookmarks(db.session, userID, urls)
+
+
+
 # eof
 
 
