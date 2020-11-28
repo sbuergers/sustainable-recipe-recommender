@@ -621,8 +621,28 @@ def query_bookmarks(session, userID, urls):
     return df[['recipesID', 'bookmarked']]
 
 
-bookmarks = query_bookmarks(db.session, userID, urls)
+# Get results and corresponding booksmarks (see compare_recipes route)
+search_term = 'pineapple-shrimp-noodle-bowls'
+results = content_based_search(db.session, search_term)
 
+# Disentangle reference recipe and similar recipes
+ref_recipe = results.iloc[0]
+results = results.iloc[1::, :]
+
+# Select only the top Np recipes for one page
+page = 1
+Np = 20
+results = results[(0+page*Np):((page+1)*Np)]
+
+#
+urls = results['url']
+df_bookmarks = query_bookmarks(db.session, userID, urls)
+results = results.merge(df_bookmarks, how='left', on='recipesID')
+	
+# Replace NaNs with False in bookmarked column
+results['bookmarked'].fillna(False, inplace=True)
+
+results
 
 
 # eof
