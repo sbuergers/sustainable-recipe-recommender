@@ -645,6 +645,14 @@ results['bookmarked'].fillna(False, inplace=True)
 results
 
 
+# -------------
+
+# Query all recipe emissions (for histgoram_emissions figure)
+recipes = db.session.query(Recipe.recipesID, Recipe.emissions_log10, Recipe.url, Recipe.title)
+df = pd.read_sql(recipes.statement, db.session.bind)
+df.rename(columns={'emissions_log10': 'Emissions'}, inplace=True)
+
+
 # eof
 
 
