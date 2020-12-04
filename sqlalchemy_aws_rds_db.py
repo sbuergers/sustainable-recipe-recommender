@@ -408,7 +408,8 @@ def query_cookbook(session, userID):
 		SELECT u."userID", u.username,
 			l.created, l.rating,
 			r.title, r.url, r.perc_rating, r.perc_sustainability,
-			r.review_count, r.image_url, r.emissions, r.prop_ingredients
+			r.review_count, r.image_url, r.emissions, r.prop_ingredients,
+			r.categories
 			FROM users u
 			JOIN likes l ON (u.username = l.username)
 			JOIN recipes r ON (l."recipesID" = r."recipesID")
@@ -422,7 +423,7 @@ def query_cookbook(session, userID):
 	recipes = session.execute(query).fetchall()
 	
 	# Convert to DataFrame
-	col_sel = ["userID", "username", "created", "user_rating",
+	col_sel = ["userID", "username", "created", "user_rating", "categories",
 			   "recipe_title", "url", "perc_rating", "perc_sustainability",
 			   "review_count", "image_url", "emissions", "prop_ingredients"]
 	results = pd.DataFrame(recipes, columns=col_sel)
@@ -430,7 +431,7 @@ def query_cookbook(session, userID):
 	# Assign data types
 	numerics = ['userID', 'user_rating', 'perc_rating', 'perc_sustainability',
 				'review_count', 'emissions', 'prop_ingredients']
-	strings = ['username', 'recipe_title', 'url', 'image_url']
+	strings = ['username', 'recipe_title', 'url', 'image_url', 'categories']
 	datetimes = ['created']
 	for num in numerics:
 		results[num] = pd.to_numeric(results[num])
@@ -652,6 +653,12 @@ recipes = db.session.query(Recipe.recipesID, Recipe.emissions_log10, Recipe.url,
 df = pd.read_sql(recipes.statement, db.session.bind)
 df.rename(columns={'emissions_log10': 'Emissions'}, inplace=True)
 
+
+# -------------
+
+# Query categories for a selection of recipes and order them by frequency
+userID = 3
+df = query_cookbook(db.session, userID)
 
 # eof
 
