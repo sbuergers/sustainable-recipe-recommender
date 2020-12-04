@@ -423,9 +423,10 @@ def query_cookbook(session, userID):
 	recipes = session.execute(query).fetchall()
 	
 	# Convert to DataFrame
-	col_sel = ["userID", "username", "created", "user_rating", "categories",
+	col_sel = ["userID", "username", "created", "user_rating",
 			   "recipe_title", "url", "perc_rating", "perc_sustainability",
-			   "review_count", "image_url", "emissions", "prop_ingredients"]
+			   "review_count", "image_url", "emissions", "prop_ingredients",
+			   "categories"]
 	results = pd.DataFrame(recipes, columns=col_sel)
 	
 	# Assign data types
@@ -659,6 +660,26 @@ df.rename(columns={'emissions_log10': 'Emissions'}, inplace=True)
 # Query categories for a selection of recipes and order them by frequency
 userID = 3
 df = query_cookbook(db.session, userID)
+
+def get_favorite_categories(df):
+	"""
+	DESCRIPTION:
+		takes a dataframe with cookbook recipes as input and return a list of 
+		two-element tuples with category and count (e.g. ('dinner', 18)). Over
+		the whole categories column.
+	INPUT:
+		df (pd.DataFrame)
+	OUTPUT:
+		List of tuples
+	"""
+	category_list = []
+	for item in df['categories']:
+		category_list.extend(item.split(';'))
+	count_table = [(l, category_list.count(l)) for l in set(category_list)]
+	count_table.sort(reverse=True, key=lambda x: x[1])	
+	return count_table
+
+print(get_favorite_categories(df))
 
 # eof
 
