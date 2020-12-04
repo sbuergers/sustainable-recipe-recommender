@@ -662,24 +662,14 @@ userID = 3
 df = query_cookbook(db.session, userID)
 
 def get_favorite_categories(df):
-	"""
-	DESCRIPTION:
-		takes a dataframe with cookbook recipes as input and return a list of 
-		two-element tuples with category and count (e.g. ('dinner', 18)). Over
-		the whole categories column.
-	INPUT:
-		df (pd.DataFrame)
-	OUTPUT:
-		List of tuples
-	"""
 	category_list = []
 	for item in df['categories']:
 		category_list.extend(item.split(';'))
-	count_table = [(l, category_list.count(l)) for l in set(category_list)]
+	count_table = [(l, category_list.count(l)) for l in set(category_list)]	
 	count_table.sort(reverse=True, key=lambda x: x[1])	
-	return count_table
-
-print(get_favorite_categories(df))
+	labels = [item[0] for item in count_table]
+	counts = [item[1] for item in count_table]
+	return labels, counts
 
 # eof
 
