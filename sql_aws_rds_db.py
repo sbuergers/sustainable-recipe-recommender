@@ -1482,6 +1482,14 @@ cur.execute(query)
 
 # Should now contain "optin_news" column with default value=False
 check_table_columns(cur, 'users')
+
+# commit changes
+conn.commit()
+
+# reset and check if changes were indeed made
+cur.close()
+conn, cur = connect_to_DB()
+check_table_columns(cur, 'users')
 check_table_content(cur, 'users')
 
 # close DB connection
@@ -1489,12 +1497,4 @@ cur.close()
 
 
 # eof
-
-
-
-
-
-
-
-
 
