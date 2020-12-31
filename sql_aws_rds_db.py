@@ -1461,6 +1461,26 @@ cur.fetchall()
 cur.close()
 
 
+# ================================================================
+# Add column "optin_news" to users table
+
+# Check current columns
+check_table_columns(cur, 'users')
+
+# Add "optin_news" column with default=False
+query = sql.SQL(
+			""" 
+			ALTER TABLE users
+			ADD "optin_users" BOOLEAN DEFAULT FALSE;
+			"""
+		)
+cur.execute(query)
+
+# Should now contain "optin_news" column with default value=False
+check_table_columns(cur, 'users')
+check_table_content(cur, 'users')
+
+
 # eof
 
 
