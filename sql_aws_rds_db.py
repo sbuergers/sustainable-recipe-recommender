@@ -1475,7 +1475,9 @@ check_table_columns(cur, 'users')
 query = sql.SQL(
 			""" 
 			ALTER TABLE users
-			ADD "optin_users" BOOLEAN DEFAULT FALSE;
+			ADD "optin_news" BOOLEAN DEFAULT FALSE;
+			ALTER TABLE users
+			DROP COLUMN "optin_users";
 			"""
 		)
 cur.execute(query)
