@@ -1464,6 +1464,10 @@ cur.close()
 # ================================================================
 # Add column "optin_news" to users table
 
+# Connect to DB
+cur.close()
+conn, cur = connect_to_DB()
+
 # Check current columns
 check_table_columns(cur, 'users')
 
@@ -1479,6 +1483,9 @@ cur.execute(query)
 # Should now contain "optin_news" column with default value=False
 check_table_columns(cur, 'users')
 check_table_content(cur, 'users')
+
+# close DB connection
+cur.close()
 
 
 # eof
