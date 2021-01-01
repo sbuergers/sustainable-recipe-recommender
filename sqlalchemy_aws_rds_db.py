@@ -40,9 +40,9 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_NATIVE_UNICODE'] = True
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-		"pool_pre_ping": True
-	}
-db = SQLAlchemy(app)	
+    "pool_pre_ping": True
+}
+db = SQLAlchemy(app)
 db.Model.metadata.reflect(db.engine)
 
 
@@ -352,8 +352,8 @@ def content_based_search(session, search_term):
 
     # Order results by similarity
     results = results.sort_values(by='similarity', ascending=False)
-
     return results
+
 
 def search_recipes(session, search_term, N=160):
     """
@@ -393,149 +393,150 @@ def search_recipes(session, search_term, N=160):
     results = results.sort_values(by='rank', ascending=False)
     return results
 
+
 def query_cookbook(session, userID):
-	"""
+    """
     DESCRIPTION:
         Creates a pandas dataframe containing all recipes the given
-		user has liked / added to the cookbook.
-	INPUT:
-		userID (Integer)
-	OUTPUT:
-		cookbook (pd.DataFrame)
-	"""
-	query = text(
-		"""
-		SELECT u."userID", u.username,
-			l.created, l.rating,
-			r.title, r.url, r.perc_rating, r.perc_sustainability,
-			r.review_count, r.image_url, r.emissions, r.prop_ingredients,
-			r.categories
-			FROM users u
-			JOIN likes l ON (u.username = l.username)
-			JOIN recipes r ON (l."recipesID" = r."recipesID")
-		WHERE u."userID" = :userID
-		ORDER BY l.rating
-		""",
-		bindparams=[
-			bindparam('userID', value=userID, type_=Integer)
-		]
-	)
-	recipes = session.execute(query).fetchall()
-	
-	# Convert to DataFrame
-	col_sel = ["userID", "username", "created", "user_rating",
-			   "recipe_title", "url", "perc_rating", "perc_sustainability",
-			   "review_count", "image_url", "emissions", "prop_ingredients",
-			   "categories"]
-	results = pd.DataFrame(recipes, columns=col_sel)
-	
-	# Assign data types
-	numerics = ['userID', 'user_rating', 'perc_rating', 'perc_sustainability',
-				'review_count', 'emissions', 'prop_ingredients']
-	strings = ['username', 'recipe_title', 'url', 'image_url', 'categories']
-	datetimes = ['created']
-	for num in numerics:
-		results[num] = pd.to_numeric(results[num])
-	for s in strings:
-		results[s] = results[s].astype('str')
-	for dt in datetimes:
-		results[dt] = pd.to_datetime(results[dt])
-	return results
+        user has liked / added to the cookbook.
+    INPUT:
+        userID (Integer)
+    OUTPUT:
+        cookbook (pd.DataFrame)
+    """
+    query = text(
+        """
+        SELECT u."userID", u.username,
+            l.created, l.rating,
+            r.title, r.url, r.perc_rating, r.perc_sustainability,
+            r.review_count, r.image_url, r.emissions, r.prop_ingredients,
+            r.categories
+            FROM users u
+            JOIN likes l ON (u.username = l.username)
+            JOIN recipes r ON (l."recipesID" = r."recipesID")
+        WHERE u."userID" = :userID
+        ORDER BY l.rating
+        """,
+        bindparams=[
+            bindparam('userID', value=userID, type_=Integer)
+        ]
+    )
+    recipes = session.execute(query).fetchall()
+
+    # Convert to DataFrame
+    col_sel = ["userID", "username", "created", "user_rating",
+               "recipe_title", "url", "perc_rating", "perc_sustainability",
+               "review_count", "image_url", "emissions", "prop_ingredients",
+               "categories"]
+    results = pd.DataFrame(recipes, columns=col_sel)
+
+    # Assign data types
+    numerics = ['userID', 'user_rating', 'perc_rating', 'perc_sustainability',
+                'review_count', 'emissions', 'prop_ingredients']
+    strings = ['username', 'recipe_title', 'url', 'image_url', 'categories']
+    datetimes = ['created']
+    for num in numerics:
+        results[num] = pd.to_numeric(results[num])
+    for s in strings:
+        results[s] = results[s].astype('str')
+    for dt in datetimes:
+        results[dt] = pd.to_datetime(results[dt])
+    return results
 
 
 def is_in_cookbook(session, userID, url):
-	"""
-	DESCRIPTION:
-		Check if a recipe (given by url) is already in a user's
-		cookbook (given by userID)
-	INPUT:
-		userID (Integer): userID from users table
-		url (String): Url string from recipes table
-	OUTPUT:
-		Boolean
-	"""	
-	# Get username and recipesID
-	user = User.query.filter_by(userID=userID).first()
-	recipe = Recipe.query.filter_by(url=url).first()
-	
-	# Query like entries
-	like = Like.query.filter_by(userID=userID,
-							 recipesID=recipe.recipesID).first()
-	if like:
-		return True
-	return False
+    """
+    DESCRIPTION:
+        Check if a recipe (given by url) is already in a user's
+        cookbook (given by userID)
+    INPUT:
+        userID (Integer): userID from users table
+        url (String): Url string from recipes table
+    OUTPUT:
+        Boolean
+    """
+    # Get username and recipesID
+    recipe = Recipe.query.filter_by(url=url).first()
+
+    # Query like entries
+    like = Like.query.filter_by(userID=userID,
+                                recipesID=recipe.recipesID).first()
+    if like:
+        return True
+    return False
 
 
 def add_to_cookbook(session, userID, url):
-	"""
-	DESCRIPTION:
-		Creates a new entry in the likes table for a given user
-		and recipe.
-	INPUT:
-		userID (Integer): userID from users table
-		url (String): Url string from recipes table
-	OUTPUT:
-		String: Feedback message
-	"""
-	# Get username and recipesID
-	user = User.query.filter_by(userID=userID).first()
-	recipe = Recipe.query.filter_by(url=url).first()
-	
-	# Create new like entry
-	like = Like(username=user.username,
-			 rating=None,
-			 userID=userID,
-			 recipesID=recipe.recipesID,
-			 created=datetime.datetime.utcnow())
-	session.add(like)
-	session.commit()
-	
+    """
+    DESCRIPTION:
+        Creates a new entry in the likes table for a given user
+        and recipe.
+    INPUT:
+        userID (Integer): userID from users table
+        url (String): Url string from recipes table
+    OUTPUT:
+        String: Feedback message
+    """
+    # Get username and recipesID
+    user = User.query.filter_by(userID=userID).first()
+    recipe = Recipe.query.filter_by(url=url).first()
+
+    # Create new like entry
+    like = Like(username=user.username,
+                rating=None,
+                userID=userID,
+                recipesID=recipe.recipesID,
+                created=datetime.datetime.utcnow())
+    session.add(like)
+    session.commit()
+
 
 def remove_from_cookbook(session, userID, url):
-	"""
-	DESCRIPTION:
-		Removes an existing entry in the likes table for a given
-		user and recipe.
-	INPUT:
-		userID (Integer): userID from users table
-		url (String): Url string from recipes table
-	OUTPUT:
-		String: Feedback message
-	"""
-	# Get like entry based on userID and recipe url
-	user = User.query.filter_by(userID=userID).first()
-	recipe = Recipe.query.filter_by(url=url).first()
-	like = Like.query.filter_by(userID=userID,
-							 recipesID=recipe.recipesID).first()
-	
-	# Create new like entry
-	session.delete(like)
-	session.commit()
-	
-	
+    """
+    DESCRIPTION:
+        Removes an existing entry in the likes table for a given
+        user and recipe.
+    INPUT:
+        userID (Integer): userID from users table
+        url (String): Url string from recipes table
+    OUTPUT:
+        String: Feedback message
+    """
+    # Get like entry based on userID and recipe url
+    recipe = Recipe.query.filter_by(url=url).first()
+    like = Like.query.filter_by(userID=userID,
+                                recipesID=recipe.recipesID).first()
+
+    # Create new like entry
+    session.delete(like)
+    session.commit()
+
+
 def query_user_ratings(session, userID, urls):
-	"""
-	DESCRIPTION:
+    """
+    DESCRIPTION:
         Query all rows in likes table with the given userID
         for all elements in urls
-	INPUT:
-		userID (Integer): userID from users table
-		urls (List of strings): Url strings from recipes table
-	OUTPUT:
-		pandas.DataFrame with columns [likeID, userID, recipesID,
-			 username, bookmarked, rating, created], can be empty
-	"""
-	recipesIDs = session.query(Recipe.recipesID).\
-		filter(Recipe.url.in_(urls)).all()
-	likes_query = session.query(Like).\
-		filter(Like.userID==userID,
-		 Like.recipesID.in_(recipesIDs))
-	return pd.read_sql(likes_query.statement, session.bind)
+    INPUT:
+        userID (Integer): userID from users table
+        urls (List of strings): Url strings from recipes table
+    OUTPUT:
+        pandas.DataFrame with columns [likeID, userID, recipesID,
+                username, bookmarked, rating, created], can be empty
+    """
+    recipesIDs = session.query(Recipe.recipesID).\
+        filter(Recipe.url.in_(urls)).all()
+    likes_query = session.query(Like).\
+        filter(Like.userID == userID,
+               Like.recipesID.in_(recipesIDs))
+    df = pd.read_sql(likes_query.statement, session.bind)
+    df.rename(columns={'rating': 'user_rating'}, inplace=True)
+    return df
 
 
 userID = 3
 urls = ['bla-blub', 'blabla-blubblub', 'pineapple-shrimp-noodle-bowls',
-		'cold-sesame-noodles-12715']
+        'cold-sesame-noodles-12715']
 query_user_ratings(db.session, userID, urls)
 
 urls = ['bla-blub', 'blabla-blubblub']
@@ -543,27 +544,27 @@ query_user_ratings(db.session, userID, urls)
 
 
 def rate_recipe(session, userID, url, rating):
-	"""
-	DESCRIPTION:
+    """
+    DESCRIPTION:
         Add user rating to bookmarked recipe in DB.
-	INPUT:
-		userID (Integer): userID from users table
-		url (String): Recipe url tag
-	OUTPUT:
-		None
-	"""
-	# Get recipeID
-	recipeID = session.query(Recipe.recipesID).\
-		filter(Recipe.url==url).first()
-		
-	# Find relevant likes row
-	like = Like.query.filter_by(userID=userID, recipesID=recipeID).first()
-	
-	# Add user rating and commit to DB
-	like.rating = rating
-	session.add(like)
-	session.commit()
-	
+    INPUT:
+        userID (Integer): userID from users table
+        url (String): Recipe url tag
+    OUTPUT:
+        None
+    """
+    # Get recipeID
+    recipeID = session.query(Recipe.recipesID).\
+        filter(Recipe.url == url).first()
+
+    # Find relevant likes row
+    like = Like.query.filter_by(userID=userID, recipesID=recipeID).first()
+
+    # Add user rating and commit to DB
+    like.rating = rating
+    session.add(like)
+    session.commit()
+
 
 # TEST rate_recipe
 url = 'pineapple-shrimp-noodle-bowls'
@@ -579,20 +580,19 @@ df = query_user_ratings(db.session, userID, [url])
 assert df['rating'][0] == 5
 
 
-
 # Query recipes given by urls, and for this particular user return which
 # ones are bookmarked
 userID = 3
 urls = ['bla-blub', 'blabla-blubblub', 'pineapple-shrimp-noodle-bowls',
-		'cold-sesame-noodles-12715']
+        'cold-sesame-noodles-12715']
 sql_query = db.session.query(
-	Recipe, Like
+    Recipe, Like
 ).join(
-	Like, Like.recipesID == Recipe.recipesID, isouter=True
+    Like, Like.recipesID == Recipe.recipesID, isouter=True
 ).filter(
-	Like.userID == userID,
-	Recipe.url.in_(urls)
-)	
+    Like.userID == userID,
+    Recipe.url.in_(urls)
+)
 df = pd.read_sql(sql_query.statement, db.session.bind)
 df
 
@@ -617,9 +617,9 @@ def query_bookmarks(session, userID, urls):
         Recipe.url.in_(urls)
     )
     df = pd.read_sql(sql_query.statement, session.bind)
-	
+
     # I got 2 recipeID columns, keep only one!
-    df = df.loc[:,~df.columns.duplicated()]
+    df = df.loc[:, ~df.columns.duplicated()]
     return df[['recipesID', 'bookmarked']]
 
 
@@ -640,12 +640,29 @@ results = results[(0+page*Np):((page+1)*Np)]
 urls = results['url']
 df_bookmarks = query_bookmarks(db.session, userID, urls)
 results = results.merge(df_bookmarks, how='left', on='recipesID')
-	
+
 # Replace NaNs with False in bookmarked column
 results['bookmarked'].fillna(False, inplace=True)
 
 results
 
+
+# -------------
+
+# Check combination of search_results and user's liked recipes
+# (e.g. in compare_recipes)
+
+# Step 1: Recipe search results for search_term
+search_term = 'pineapple-shrimp-noodle-bowls'
+results = content_based_search(db.session, search_term)
+
+# Step 2: For this user and those recipes, which ones are liked?
+userID = 3
+urls = results['url']
+user_results = query_user_ratings(db.session, userID, urls)
+
+# Step 3: Combine data
+test = results.merge(user_results[['user_rating', 'recipesID']], how='left', on='recipesID')
 
 # -------------
 
@@ -661,17 +678,16 @@ df.rename(columns={'emissions_log10': 'Emissions'}, inplace=True)
 userID = 3
 df = query_cookbook(db.session, userID)
 
+
 def get_favorite_categories(df):
-	category_list = []
-	for item in df['categories']:
-		category_list.extend(item.split(';'))
-	count_table = [(l, category_list.count(l)) for l in set(category_list)]	
-	count_table.sort(reverse=True, key=lambda x: x[1])	
-	labels = [item[0] for item in count_table]
-	counts = [item[1] for item in count_table]
-	return labels, counts
+    category_list = []
+    for item in df['categories']:
+        category_list.extend(item.split(';'))
+    count_table = [(l, category_list.count(l)) for l in set(category_list)]	
+    count_table.sort(reverse=True, key=lambda x: x[1])	
+    labels = [item[0] for item in count_table]
+    counts = [item[1] for item in count_table]
+    return labels, counts
+
 
 # eof
-
-
-
