@@ -755,6 +755,7 @@ cur.execute(
 	(
 	    "consentID" BIGSERIAL,
 	    "userID" BIGINT NOT NULL,
+		"consent_type" VARCHAR,
 		"consent_given_on" TIMESTAMP,
 		"consent_withdrawn_on" TIMESTAMP,
 		"consent_given_via" VARCHAR,
