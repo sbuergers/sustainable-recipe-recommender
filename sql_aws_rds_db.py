@@ -735,6 +735,60 @@ check_table_content(cur, 'likes')
 
 
 # ===========================================================================
+# CREATE consent TABLE
+
+conn, cur = connect_to_DB()
+
+cur.execute(
+	'''
+	DROP TABLE IF EXISTS public.consent;
+	'''
+	)
+conn.commit()
+check_db_content(cur)
+
+
+# Create consent table
+cur.execute(
+	'''
+	CREATE TABLE public.consent
+	(
+	    "consentID" BIGSERIAL,
+	    "userID" BIGINT NOT NULL,
+		"consent_given_on" TIMESTAMP,
+		"consent_withdrawn_on" TIMESTAMP,
+		"consent_given_via" VARCHAR,
+		"consent_withdrawn_via" VARCHAR,
+	    PRIMARY KEY ("consentID"),
+		CONSTRAINT fk_users
+			FOREIGN KEY("userID")
+				REFERENCES users("userID")
+				ON DELETE SET NULL
+	)
+	WITH (
+	    OIDS = FALSE
+	);
+	
+	ALTER TABLE public.consent
+	    OWNER to postgres;
+	''')
+	
+# Commit table creation
+conn.commit()
+check_db_content(cur)
+
+# Check table contents (should be empty after creation)
+cur.execute('''
+			 SELECT * FROM public.consent
+			 LIMIT 10
+		    ''')
+cur.fetchall()
+
+# Check table columns
+check_table_columns(cur, 'consent')
+
+
+# ===========================================================================
 #                            TABLE ADJUSTMENTS
 # ===========================================================================
 
