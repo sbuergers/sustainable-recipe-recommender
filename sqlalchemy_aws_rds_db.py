@@ -46,6 +46,14 @@ db = SQLAlchemy(app)
 db.Model.metadata.reflect(db.engine)
 
 
+class User(db.Model):
+    __table__ = db.Model.metadata.tables['users']
+    likes = db.relationship('Like', backref='user', lazy='dynamic')
+
+    def __repr__(self):
+        return '<User {}>'.format(self.username)
+
+
 class Recipe(db.Model):
     __table__ = db.Model.metadata.tables['recipes']
 
@@ -621,6 +629,43 @@ def query_bookmarks(session, userID, urls):
     # I got 2 recipeID columns, keep only one!
     df = df.loc[:, ~df.columns.duplicated()]
     return df[['recipesID', 'bookmarked']]
+
+
+def delete_account(session, userID):
+    """
+    DESCRIPTION:
+        Removes an existing user entry.
+    INPUT:
+        userID (Integer): userID from users table
+    OUTPUT:
+        String: Feedback message
+    NOTE: I am not sure if rows in other tables, such
+    as the likes table, referring to this user should
+    also be deleted. It seems unneccessary.
+    """
+    user = User.query.filter_by(userID=userID).first()
+    if user:
+
+        # First delete likes of user
+        likes = Like.query.filter_by(userID=userID).all()
+        session.delete(user)
+        session.commit()
+        return 'Removed user account successfully'
+    return 'User not found. Nothing was removed.'
+
+
+db.session.rollback()
+
+# what userid is content_test?
+uoi = User.query.filter_by(username='consent_test').first()
+uoi.userID
+
+# delete content_test user
+userID = 10
+delete_account(db.session, userID)
+
+likes = Like.query.filter_by(username='consent_test').all()
+
 
 
 # Get results and corresponding booksmarks (see compare_recipes route)
