@@ -1047,13 +1047,5 @@ df_pruned4[np.logical_and(df_pruned4.index.isin(ex),
 						  df_pruned4['other'].notnull().values]
 
 
-
-
-
-
-
-
-
-
 # eof
 
