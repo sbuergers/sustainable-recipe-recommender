@@ -687,7 +687,6 @@ results['bookmarked'].fillna(False, inplace=True)
 
 results
 
-
 # -------------
 
 # Check combination of search_results and user's liked recipes
@@ -729,6 +728,18 @@ def get_favorite_categories(df):
     labels = [item[0] for item in count_table]
     counts = [item[1] for item in count_table]
     return labels, counts
+
+# ------------
+
+# show me all columns in a model
+def show_model_columns(model):
+    '''
+    Show all columns in sql alchemy model with name "model"
+    '''
+    from sqlalchemy.inspection import inspect
+    return [column.name for column in inspect(User).c]
+
+    show_model_columns(User)
 
 
 # eof
