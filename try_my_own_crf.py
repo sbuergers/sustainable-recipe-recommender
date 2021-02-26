@@ -5,6 +5,8 @@ Created on Sat Jun 20 15:56:38 2020
 Largely inspired by 
 https://www.analyticsvidhya.com/blog/2018/08/nlp-guide-conditional-random-fields-text-classification/
 https://www.depends-on-the-definition.com/named-entity-recognition-conditional-random-fields-python/
+https://github.com/AiswaryaSrinivas/DataScienceWithPython/blob/master/CRF%20POS%20Tagging.ipynb
+
 @author: sbuer
 """
 
@@ -16,22 +18,29 @@ pd.set_option('display.max_columns', 20)
 
 # machine learning
 from sklearn.model_selection import train_test_split
-from sklearn_crfsuite import CRF
 from sklearn.metrics import classification_report
+from sklearn_crfsuite import CRF
+from sklearn_crfsuite import metrics
+from sklearn_crfsuite import scorers
 
 # NLP
+import nltk
+import re
+from nltk.tokenize import word_tokenize
 from nltk.tokenize import WordPunctTokenizer
 
+# Misc
+from collections import Counter
+import time
+import random
 
-
-
-# load ner (named entity recognition) dataset from Kaggle
-# https://www.kaggle.com/abhinavwalia95/entity-annotated-corpus#ner_dataset.csv
-# data = pd.read_csv(r'D:\data science\nutrition\ner_dataset\1014_4361_bundle_archive\ner_dataset.csv', encoding="latin1")
+# Plotting
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 # Use the tagged NYT ingredients dataset
-data = pd.read_csv(r'D:\data science\nutrition\scripts\ingredient-phrase-tagger\nyt-ingredients-snapshot-2015.csv', 
+data = pd.read_csv(r'd:\"data science"\nutrition\scripts\ingredient-phrase-tagger\nyt-ingredients-snapshot-2015.csv', 
 				   encoding="utf-8", index_col=None)
 data.tail(10)
 
