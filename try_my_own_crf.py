@@ -30,6 +30,7 @@ from nltk.tokenize import word_tokenize
 from nltk.tokenize import WordPunctTokenizer
 
 # Misc
+import os
 from collections import Counter
 import time
 import random
@@ -40,17 +41,20 @@ import seaborn as sns
 
 
 # Use the tagged NYT ingredients dataset
-data = pd.read_csv(r'd:\"data science"\nutrition\scripts\ingredient-phrase-tagger\nyt-ingredients-snapshot-2015.csv', 
-				   encoding="utf-8", index_col=None)
+path_dir = r"/mnt/d/data science/nutrition"
+filename = 'nyt-ingredients-snapshot-2015.csv'
+data = pd.read_csv(os.sep.join([path_dir, filename]), 
+                   encoding="utf-8", index_col=None)
 data.tail(10)
 
-words = list(set(data["Word"].values))
-n_words = len(words)
-print(n_words)
-
 # Tags: 'name', 'qty', 'range_end', 'unit', 'comment'
-# I will add the additional tag 'other', for parts of the input that do not
-# appear in any of the tagged output
+
+
+# Divide data into training and test set
+train_set, test_set = train_test_split(tagged_sentence,test_size=0.2,
+                                       random_state=1234)
+print("Number of phrases in training set ", len(train_set))
+print("Number of phrases in test set ", len(test_set))
 
 # I have to make sure to convert the quantities in the input (strings) to 
 # floats to match the output (I can then convert back to strings)
